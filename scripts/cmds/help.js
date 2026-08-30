@@ -79,7 +79,7 @@ module.exports = {
       msg += `\n${fonts.bold("➜ Command details:")} ${prefix}menu <commande>\n`;
       msg += `${fonts.bold("➜ Basics:")} ${prefix}help basics\n`;
       msg += `${fonts.bold("➜ Search:")} ${prefix}help search <mot>\n`;
-      msg += `${fonts.bold("➜ Developed by ヾ. ටිeth ぐさ")} 🩵🪽`;
+      msg += `${fonts.bold("乂 Developed by ヾ. ටිeth ぐさ")} 🧡🪽`;
 
       return message.reply(msg);
     }
@@ -104,7 +104,7 @@ module.exports = {
         return message.reply(fonts.bold("❌ No basic commands available for your role."));
       }
 
-      let msg = `${fonts.bold("✅ Basic Commands")}\n\n`;
+      let msg = `${fonts.bold("🌺 Basic Commands")}\n\n`;
 
       for (const cmd of validCommands) {
         const cfg = cmd.config;
@@ -114,7 +114,7 @@ module.exports = {
 
       msg += `\n${fonts.bold("➜ Try to Explore more commands!")}\n`;
       msg += `${fonts.bold("➜ View all:")} ${prefix}help all\n`;
-      msg += `${fonts.bold("➜ Developed by ヾ. ටිeth ぐさ")} 🩵🪽`;
+      msg += `${fonts.bold("➜ Developed by ヾ. ටිeth ぐさ")} 🧡🪽`;
 
       return message.reply(msg);
     }
@@ -123,7 +123,7 @@ module.exports = {
       const searchStr = args[1];
       if (!searchStr) {
         return message.reply(
-          `🔎 Search a command by putting a search keyword as argument.\n\n${fonts.bold("EXAMPLE:")} ${prefix}menu search shop`
+          `🔎 Search Result a command by putting a search keyword as argument.\n\n${fonts.bold("EXAMPLE:")} ${prefix}menu search shop`
         );
       }
 
@@ -153,7 +153,7 @@ module.exports = {
         msg += `${fonts.bold("➜")} ${cfg.description?.fr || "No Description"}\n\n`;
       }
 
-      msg += `${fonts.bold("➜ Developed by ヾ. ටිeth ぐさ")} 🩵🪽`;
+      msg += `${fonts.bold("➜ Developed by ヾ. ටිeth ぐさ")} 🧡🪽`;
 
       return message.reply(msg);
     }
@@ -176,8 +176,8 @@ module.exports = {
 
     const roleText = cfg.role == 0 ? "All users" : cfg.role == 1 ? "Group admins" : cfg.role == 2 ? "Bot admin" : "Unknown";
 
-    const detail = `${fonts.bold(`╭─── 📄 ${toTitleCase(cfg.name)} ───`)}
-│ ➤ Name: ${fonts.sansSerif(cfg.name)}
+    const detail = `${fonts.bold(`╭─── 🌸 ${toTitleCase(cfg.name)} ───`)}
+│ 乂 Name: ${fonts.sansSerif(cfg.name)}
 │ ➤ Author: ${cfg.author || "Unknown"}
 │ ➤ Description: ${cfg.description?.fr || "None"}
 │ ➤ Usage: ${fonts.monospace(usage)}
