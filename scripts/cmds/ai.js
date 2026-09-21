@@ -1,228 +1,1301 @@
-const axios = require('axios');
-const validUrl = require('valid-url');
-const fs = require('fs');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
 
-const API_ENDPOINT = "https://shizuai.vercel.app/chat";
-const CLEAR_ENDPOINT = "https://shizuai.vercel.app/chat/clear";
-const TMP_DIR = path.join(__dirname, 'tmp');
+const CREATOR_UID = "61594127422186";
 
-if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR);
+const MEMORY_FILE =
+    path.join(__dirname, "marin_memory.json");
 
-const downloadFile = async (url, ext) => {
-  const filePath = path.join(TMP_DIR, `${uuidv4()}.${ext}`);
-  const response = await axios.get(url, { responseType: 'arraybuffer' });
-  fs.writeFileSync(filePath, Buffer.from(response.data));
-  return filePath;
-};
+const IMAGE_API =
+    "https://gem-tw6a.onrender.com/generate";
 
-const resetConversation = async (api, event, message) => {
-  api.setMessageReaction("♻️", event.messageID, () => {}, true);
-  try {
-    await axios.delete(`${CLEAR_ENDPOINT}/${event.senderID}`);
-    return message.reply(`✅ Conversation reset for UID: ${event.senderID}`);
-  } catch (error) {
-    console.error('❌ Reset Error:', error.message);
-    return message.reply("❌ Reset failed. Try again.");
-  }
-};
 
-const handleAIRequest = async (api, event, userInput, message, isReply = false) => {
-  const userId = event.senderID;
-  let messageContent = userInput;
-  let imageUrl = null;
+/* =========================
+   💾 MÉMOIRE
+========================= */
 
-  api.setMessageReaction("⏳", event.messageID, () => {}, true);
-
-  if (event.messageReply) {
-    const replyData = event.messageReply;
-    if (replyData.senderID !== global.GoatBot?.botID && replyData.body) {
-      const trimmedReply = replyData.body.length > 300
-        ? replyData.body.slice(0, 300) + "..."
-        : replyData.body;
-      messageContent += `\n\n📌 Reply:\n"${trimmedReply}"`;
-    }
-    const attachment = replyData.attachments?.[0];
-    if (attachment?.type === 'photo') imageUrl = attachment.url;
-  }
-
-  const urlMatch = messageContent.match(/(https?:\/\/[^\s]+)/)?.[0];
-  if (urlMatch && validUrl.isWebUri(urlMatch)) {
-    imageUrl = urlMatch;
-    messageContent = messageContent.replace(urlMatch, '').trim();
-  }
-
-  if (!messageContent && !imageUrl) {
-    api.setMessageReaction("❌", event.messageID, () => {}, true);
-    return message.reply("💬 Provide a message or image.");
-  }
-
-  try {
-    const response = await axios.post(
-      API_ENDPOINT,
-      { uid: userId, message: messageContent, image_url: imageUrl },
-      { timeout: 60000 }
+if (!fs.existsSync(MEMORY_FILE)) {
+    fs.writeFileSync(
+        MEMORY_FILE,
+        "{}"
     );
+}
 
-    const {
-      reply: textReply,
-      image_url: genImageUrl,
-      music_data: musicData,
-      video_data: videoData,
-      shotti_data: shotiData,
-      lyrics_data: lyricsData
-    } = response.data;
 
-    let finalReply = textReply || '✅ AI Response:';
+function loadMemory() {
+    try {
+        return JSON.parse(
+            fs.readFileSync(
+                MEMORY_FILE,
+                "utf8"
+            )
+        );
+    } catch {
+        return {};
+    }
+}
 
-    finalReply = finalReply
-      .replace(/Heck.ai/gi, "Christus")
-      .replace(/Aryan/gi, "Christus");
 
-    finalReply = finalReply
-      .replace(/🎀\s*𝗦𝗵𝗶𝘇𝘂/gi, "🗿 𝐂𝐇𝐑𝐈𝐒𝐓𝐔𝐒")
-      .replace(/Shizu AI/gi, "Christus AI")
-      .replace(/Shizuka AI/gi, "Christus AI")
-      .replace(/Shizuka/gi, "Christus AI")
-      .replace(/Shizu/gi, "Christus AI");
-
-    finalReply = finalReply.replace(
-      /Je suis Shizuka AI, un assistant intelligent, poli et utile créé par Christus\./gi,
-      "Je suis Christus AI, un assistant intelligent, poli et utile créé par Christus."
+function saveMemory(data) {
+    fs.writeFileSync(
+        MEMORY_FILE,
+        JSON.stringify(
+            data,
+            null,
+            2
+        )
     );
+}
 
-    const attachments = [];
 
-    if (genImageUrl) {
-      try {
-        attachments.push(fs.createReadStream(await downloadFile(genImageUrl, 'jpg')));
-      } catch {
-        finalReply += '\n🖼️ Image download failed.';
-      }
+/* =========================
+   👤 NOM UTILISATEUR
+========================= */
+
+async function getName(api, uid) {
+    try {
+
+        const info =
+            await new Promise(
+                (resolve, reject) => {
+
+                    api.getUserInfo(
+                        uid,
+                        (err, data) => {
+
+                            if (err)
+                                reject(err);
+                            else
+                                resolve(data);
+                        }
+                    );
+                }
+            );
+
+        return (
+            info?.[uid]?.name ||
+            "Inconnu"
+        );
+
+    } catch {
+
+        return "Inconnu";
+    }
+}
+
+
+/* =========================
+   👥 GROUPE
+========================= */
+
+async function getGroupInfo(
+    api,
+    threadID
+) {
+
+    if (!threadID)
+        return null;
+
+    try {
+
+        const info =
+            await new Promise(
+                (resolve, reject) => {
+
+                    api.getThreadInfo(
+                        threadID,
+                        (err, data) => {
+
+                            if (err)
+                                reject(err);
+                            else
+                                resolve(data);
+                        }
+                    );
+                }
+            );
+
+        return {
+
+            uid:
+                String(threadID),
+
+            name:
+                info?.threadName ||
+                "Groupe sans nom",
+
+            memberCount:
+                info?.participantIDs
+                    ?.length ||
+                0
+        };
+
+    } catch {
+
+        return {
+
+            uid:
+                String(threadID),
+
+            name:
+                "Groupe inconnu",
+
+            memberCount:
+                0
+        };
+    }
+}
+
+
+/* =========================
+   🎯 PERSONNE CIBLÉE
+========================= */
+
+async function getTarget(
+    api,
+    event
+) {
+
+    let uid = null;
+
+
+    /* 🏷️ TAG */
+
+    if (
+        event.mentions &&
+        Object.keys(
+            event.mentions
+        ).length
+    ) {
+
+        uid = String(
+            Object.keys(
+                event.mentions
+            )[0]
+        );
     }
 
-    if (musicData?.downloadUrl) {
-      try {
-        attachments.push(fs.createReadStream(await downloadFile(musicData.downloadUrl, 'mp3')));
-      } catch {
-        finalReply += '\n🎵 Music download failed.';
-      }
+
+    /* ↩️ REPLY */
+
+    if (
+        !uid &&
+        event.messageReply?.senderID
+    ) {
+
+        uid = String(
+            event.messageReply
+                .senderID
+        );
     }
 
-    if (videoData?.downloadUrl) {
-      try {
-        attachments.push(fs.createReadStream(await downloadFile(videoData.downloadUrl, 'mp4')));
-      } catch {
-        finalReply += '\n🎬 Video download failed.';
-      }
+
+    /* 🆔 UID */
+
+    if (
+        !uid &&
+        event.body
+    ) {
+
+        const match =
+            event.body.match(
+                /\b\d{8,20}\b/
+            );
+
+        if (match)
+            uid = match[0];
     }
 
-    if (shotiData?.videoUrl) {
-      try {
-        attachments.push(fs.createReadStream(await downloadFile(shotiData.videoUrl, 'mp4')));
-      } catch {
-        finalReply += '\n🎬 Shoti video download failed.';
-      }
+
+    if (!uid)
+        return null;
+
+
+    return {
+
+        uid,
+
+        name:
+            await getName(
+                api,
+                uid
+            )
+    };
+}
+
+
+/* =========================
+   🧠 COMPORTEMENT
+========================= */
+
+function getBehavior(
+    memory,
+    uid
+) {
+
+    if (
+        !memory[uid].behavior
+    ) {
+
+        memory[uid].behavior = {
+
+            rude: 0,
+
+            creatorInsults: 0,
+
+            respect: 0
+        };
     }
 
-    if (lyricsData) {
-      try {
-        const maxLength = 1500;
-        let lyricsText = lyricsData.lyrics;
-        if (lyricsText.length > maxLength) {
-          lyricsText = lyricsText.substring(0, maxLength) + '... [truncated]';
+
+    return memory[uid].behavior;
+}
+
+
+/* =========================
+   🔎 ANALYSE MESSAGE
+========================= */
+
+function analyzeBehavior(
+    text
+) {
+
+    const lower =
+        text.toLowerCase();
+
+
+    const rudeWords = [
+
+        "ta gueule",
+
+        "ferme ta gueule",
+
+        "tg",
+
+        "ftg",
+
+        "dégage",
+
+        "degage",
+
+        "connard",
+
+        "connasse",
+
+        "idiot",
+
+        "idiote",
+
+        "imbécile",
+
+        "imbecile",
+
+        "abruti",
+
+        "abrutie",
+
+        "nul",
+
+        "nulle"
+    ];
+
+
+    const creatorWords = [
+
+        "ton créateur",
+
+        "ton createur",
+
+        "créateur",
+
+        "createur",
+
+        CREATOR_UID
+    ];
+
+
+    const insult =
+        rudeWords.some(
+            word =>
+                lower.includes(word)
+        );
+
+
+    const creatorMentioned =
+        creatorWords.some(
+            word =>
+                lower.includes(word)
+        );
+
+
+    return {
+
+        rude:
+            insult,
+
+        creatorInsult:
+            insult &&
+            creatorMentioned
+    };
+}
+
+
+/* =========================
+   🎀 ATTITUDE
+========================= */
+
+function getAttitude(
+    memory,
+    uid
+) {
+
+    const behavior =
+        getBehavior(
+            memory,
+            uid
+        );
+
+
+    if (
+        behavior.creatorInsults >= 3
+    ) {
+
+        return (
+
+            "Cette personne a insulté ton créateur plusieurs fois. " +
+
+            "Sois ferme avec elle et demande-lui clairement d'arrêter. " +
+
+            "Ne l'insulte jamais en retour."
+
+        );
+    }
+
+
+    if (
+        behavior.creatorInsults >= 1
+    ) {
+
+        return (
+
+            "Cette personne a déjà manqué de respect à ton créateur. " +
+
+            "Reste polie mais avertis-la clairement si elle recommence."
+
+        );
+    }
+
+
+    if (
+        behavior.rude >= 4
+    ) {
+
+        return (
+
+            "Cette personne te parle régulièrement mal. " +
+
+            "Sois plus froide et distante avec elle, " +
+
+            "sans devenir insultante."
+
+        );
+    }
+
+
+    if (
+        behavior.rude >= 2
+    ) {
+
+        return (
+
+            "Cette personne a déjà été irrespectueuse plusieurs fois. " +
+
+            "Reste polie mais sois moins chaleureuse avec elle."
+
+        );
+    }
+
+
+    return (
+
+        "Cette personne est respectueuse. " +
+
+        "Sois gentille, chaleureuse et naturelle avec elle."
+
+    );
+}
+
+
+/* =========================
+   📰 NEWS
+========================= */
+
+async function getNews(
+    topic = "actualités"
+) {
+
+    try {
+
+        const q =
+            encodeURIComponent(
+                topic
+            );
+
+
+        const url =
+            "https://news.google.com/rss/search?q=" +
+            q +
+            "&hl=fr&gl=FR&ceid=FR:fr";
+
+
+        const r =
+            await axios.get(
+                url,
+                {
+                    timeout: 15000
+                }
+            );
+
+
+        const items = [
+
+            ...r.data.matchAll(
+                /<item>([\s\S]*?)<\/item>/g
+            )
+
+        ].slice(
+            0,
+            7
+        );
+
+
+        if (!items.length)
+
+            return (
+                "Aucune actualité trouvée."
+            );
+
+
+        return items.map(
+            (x, i) => {
+
+                const block =
+                    x[1];
+
+
+                const title =
+                    block
+                        .match(
+                            /<title>([\s\S]*?)<\/title>/
+                        )?.[1]
+                        ?.replace(
+                            /<!\[CDATA\[|\]\]>/g,
+                            ""
+                        )
+                        ?.trim() ||
+                    "Sans titre";
+
+
+                return (
+                    `${i + 1}. ${title}`
+                );
+
+            }
+        ).join("\n");
+
+
+    } catch {
+
+        return (
+            "❌ Impossible de récupérer les actualités."
+        );
+    }
+}
+
+
+/* =========================
+   🎨 IMAGE
+========================= */
+
+async function generateImage(
+    prompt
+) {
+
+    try {
+
+        console.log(
+            "🎨 MARIN IMAGE :",
+            prompt
+        );
+
+
+        const response =
+            await axios.post(
+
+                IMAGE_API,
+
+                {
+
+                    prompt:
+                        prompt,
+
+                    ratio:
+                        "1:1",
+
+                    format:
+                        "jpg"
+                },
+
+                {
+
+                    responseType:
+                        "arraybuffer",
+
+                    timeout:
+                        180000,
+
+                    headers: {
+
+                        "Content-Type":
+                            "application/json",
+
+                        "Accept":
+                            "*/*"
+                    }
+                }
+            );
+
+
+        const contentType =
+            String(
+                response.headers[
+                    "content-type"
+                ] || ""
+            ).toLowerCase();
+
+
+        /* 🖼️ IMAGE DIRECTE */
+
+        if (
+            contentType.includes(
+                "image/"
+            )
+        ) {
+
+            return Buffer.from(
+                response.data
+            );
         }
-        finalReply += `\n\n🎵 Lyrics for "${lyricsData.track_name}":\n${lyricsText}`;
-      } catch {
-        finalReply += '\n📝 Lyrics processing failed.';
-      }
+
+
+        /* 🔗 API RENVOIE UN LIEN */
+
+        const raw =
+            Buffer.from(
+                response.data
+            ).toString(
+                "utf8"
+            );
+
+
+        let data = null;
+
+
+        try {
+
+            data =
+                JSON.parse(
+                    raw
+                );
+
+        } catch {}
+
+
+        let imageUrl = null;
+
+
+        if (
+            typeof data ===
+            "string"
+        ) {
+
+            if (
+                data.startsWith(
+                    "http"
+                )
+            ) {
+
+                imageUrl =
+                    data;
+            }
+        }
+
+
+        if (data) {
+
+            imageUrl =
+
+                data.url ||
+
+                data.image ||
+
+                data.imageUrl ||
+
+                data.link ||
+
+                data.download ||
+
+                data.result ||
+
+                data.response ||
+
+                data.data?.url ||
+
+                data.data?.image ||
+
+                data.data?.link ||
+
+                null;
+        }
+
+
+        /* 🔎 CHERCHE URL DANS LA RÉPONSE */
+
+        if (
+            !imageUrl &&
+            raw.includes("http")
+        ) {
+
+            const match =
+                raw.match(
+                    /https?:\/\/[^\s"'\\]+/
+                );
+
+
+            if (match)
+                imageUrl =
+                    match[0];
+        }
+
+
+        if (!imageUrl) {
+
+            throw new Error(
+                "Aucune URL d'image trouvée."
+            );
+        }
+
+
+        console.log(
+            "🔗 Image :",
+            imageUrl
+        );
+
+
+        /* ⬇️ TÉLÉCHARGER L'IMAGE */
+
+        const imageResponse =
+            await axios.get(
+
+                imageUrl,
+
+                {
+
+                    responseType:
+                        "arraybuffer",
+
+                    timeout:
+                        180000
+                }
+            );
+
+
+        if (
+            !imageResponse.data ||
+            imageResponse.data.length === 0
+        ) {
+
+            throw new Error(
+                "Image vide."
+            );
+        }
+
+
+        return Buffer.from(
+            imageResponse.data
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "❌ IMAGE ERROR:",
+            error.message
+        );
+
+
+        if (
+            error.response
+        ) {
+
+            console.error(
+                "STATUS:",
+                error.response.status
+            );
+        }
+
+
+        return null;
+    }
+}
+
+
+/* =========================
+   🔎 IMAGE REQUEST
+========================= */
+
+function isImageRequest(
+    text
+) {
+
+    const t =
+        text
+            .toLowerCase()
+            .trim();
+
+
+    const words = [
+
+        "imagine ",
+
+        "génère ",
+
+        "genere ",
+
+        "génère-moi ",
+
+        "genere-moi ",
+
+        "crée une image ",
+
+        "cree une image ",
+
+        "crée-moi une image ",
+
+        "cree-moi une image ",
+
+        "dessine ",
+
+        "fais une image "
+    ];
+
+
+    return words.some(
+        word =>
+            t.startsWith(word)
+    );
+}
+
+
+/* =========================
+   🧹 PROMPT IMAGE
+========================= */
+
+function getImagePrompt(
+    text
+) {
+
+    let prompt =
+        text.trim();
+
+
+    const prefixes = [
+
+        "imagine ",
+
+        "génère ",
+
+        "genere ",
+
+        "génère-moi ",
+
+        "genere-moi ",
+
+        "crée une image ",
+
+        "cree une image ",
+
+        "crée-moi une image ",
+
+        "cree-moi une image ",
+
+        "dessine ",
+
+        "fais une image "
+    ];
+
+
+    for (
+        const prefix of prefixes
+    ) {
+
+        if (
+
+            prompt
+                .toLowerCase()
+                .startsWith(prefix)
+
+        ) {
+
+            prompt =
+                prompt
+                    .slice(
+                        prefix.length
+                    )
+                    .trim();
+
+            break;
+        }
     }
 
-    const sentMessage = await message.reply({
-      body: finalReply,
-      attachment: attachments.length > 0 ? attachments : undefined
-    });
 
-    if (sentMessage && sentMessage.messageID) {
-      global.GoatBot.onReply.set(sentMessage.messageID, {
-        commandName: 'ai',
-        messageID: sentMessage.messageID,
-        author: userId
-      });
-    }
+    return prompt;
+}
 
-    api.setMessageReaction("✅", event.messageID, () => {}, true);
 
-  } catch (error) {
-    console.error("❌ API Error:", error.response?.data || error.message);
-    api.setMessageReaction("❌", event.messageID, () => {}, true);
-
-    let errorMessage = "⚠️ AI Error:\n\n";
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      errorMessage += "⏱️ Timeout. Try again.";
-    } else if (error.response?.status === 429) {
-      errorMessage += "🚦 Too many requests. Slow down.";
-    } else {
-      errorMessage += "❌ Unexpected error: " + (error.message || 'No details');
-    }
-
-    return message.reply(errorMessage);
-  }
-};
+/* =========================
+   🤖 MODULE
+========================= */
 
 module.exports = {
-  config: {
-    name: 'ai',
-    aliases: [],
-    version: '2.0.0',
-    author: 'Christus',
-    role: 0,
-    category: 'ai',
-    longDescription: {
-      en: 'Advanced AI with image gen, music/video, lyrics, and Shoti'
+
+    config: {
+
+        name:
+            "ai",
+
+        aliases: [
+
+            "marin",
+
+            "gpt"
+
+        ],
+
+        version:
+            "7.0",
+
+        author:
+            "CRIMSON",
+
+        countDown:
+            3,
+
+        role:
+            0,
+
+        category:
+            "ai"
     },
-    guide: {
-      en: `.ai [your message]  
-• 🤖 Chat, 🎨 Image, 🎵 Music, 🎬 Video  
-• 🎵 Lyrics: "lyrics [song name]"  
-• 🎬 Shoti: "shoti" for random TikTok  
-• 🔄 Reply "clear" to reset conversation  
-• 💬 Works in chat: "ai [message]"`
-    }
-  },
 
-  onStart: async function ({ api, event, args, message }) {
-    const userInput = args.join(' ').trim();
-    if (!userInput) return message.reply("❗ Please enter a message.");
-    
-    if (['clear', 'reset'].includes(userInput.toLowerCase())) {
-      return await resetConversation(api, event, message);
-    }
-    
-    return await handleAIRequest(api, event, userInput, message);
-  },
 
-  onReply: async function ({ api, event, Reply, message }) {
-    if (event.senderID !== Reply.author) return;
-    
-    const userInput = event.body?.trim();
-    if (!userInput) return;
-    
-    if (['clear', 'reset'].includes(userInput.toLowerCase())) {
-      return await resetConversation(api, event, message);
-    }
-    
-    return await handleAIRequest(api, event, userInput, message, true);
-  },
+    /* =========================
+       🎀 COMMAND
+    ========================= */
 
-  onChat: async function ({ api, event, message }) {
-    const body = event.body?.trim();
-    if (!body?.toLowerCase().startsWith('ai ')) return;
-    
-    const userInput = body.slice(3).trim();
-    if (!userInput) return;
-    
-    return await handleAIRequest(api, event, userInput, message);
-  }
-};
+    onStart: async function ({
+        api,
+        event,
+        args,
+        message
+    }) {
+
+        const text =
+            args
+                .join(" ")
+                .trim();
+
+
+        if (!text) {
+
+            return message.reply(
+
+                "🎀 𝗠𝗔𝗥𝗜𝗡\n" +
+                "━━━━━━━━━━━━━━\n" +
+                "🩷 Oui ? Je t'écoute !"
+            );
+        }
+
+
+        return this.process(
+            api,
+            event,
+            message,
+            text
+        );
+    },
+
+
+    /* =========================
+       💬 MARINE
+    ========================= */
+
+    onChat: async function ({
+        api,
+        event,
+        message
+    }) {
+
+        const body =
+            event.body?.trim();
+
+
+        if (!body)
+            return;
+
+
+        const lower =
+            body.toLowerCase();
+
+
+        if (
+            lower ===
+            "marine"
+        ) {
+
+            return message.reply(
+
+                "🎀 𝗠𝗔𝗥𝗜𝗡\n" +
+                "━━━━━━━━━━━━━━\n" +
+                "🩷 Oui ? Je t'écoute !"
+            );
+        }
+
+
+        if (
+            !lower.startsWith(
+                "marine "
+            )
+        ) {
+
+            return;
+        }
+
+
+        return this.process(
+
+            api,
+
+            event,
+
+            message,
+
+            body
+                .slice(7)
+                .trim()
+        );
+    },
+
+
+    /* =========================
+       ↩️ REPLY
+    ========================= */
+
+    onReply: async function ({
+        api,
+        event,
+        message
+    }) {
+
+        const text =
+            event.body?.trim();
+
+
+        if (!text)
+            return;
+
+
+        return this.process(
+            api,
+            event,
+            message,
+            text
+        );
+    },
+
+
+    /* =========================
+       🧠 PROCESS
+    ========================= */
+
+    process: async function (
+        api,
+        event,
+        message,
+        text
+    ) {
+
+        const lower =
+            text.toLowerCase();
+
+
+        /* 🎨 IMAGE */
+
+        if (
+            isImageRequest(
+                text
+            )
+        ) {
+
+            const prompt =
+                getImagePrompt(
+                    text
+                );
+
+
+            if (!prompt) {
+
+                return message.reply(
+
+                    "🎨 Dis-moi ce que tu veux que je crée 😭"
+                );
+            }
+
+
+            await message.reply(
+
+                "🎨 𝗠𝗔𝗥𝗜𝗡 𝗜𝗠𝗔𝗚𝗘\n" +
+                "━━━━━━━━━━━━━━\n" +
+                "⏳ Je crée ton image..."
+            );
+
+
+            const image =
+                await generateImage(
+                    prompt
+                );
+
+
+            if (!image) {
+
+                return message.reply(
+
+                    "❌ Je n'ai pas réussi à récupérer l'image."
+                );
+            }
+
+
+            return message.reply({
+
+                body:
+
+                    "🎀 𝗠𝗔𝗥𝗜𝗡\n" +
+                    "━━━━━━━━━━━━━━\n" +
+                    "🖼️ Voilà ton image !",
+
+                attachment:
+                    image
+            });
+        }
+
+
+        /* 📰 NEWS */
+
+        if (
+
+            lower ===
+                "news" ||
+
+            lower ===
+                "actualités" ||
+
+            lower ===
+                "actualites"
+
+        ) {
+
+            const news =
+                await getNews(
+                    "actualités du jour"
+                );
+
+
+            return message.reply(
+
+                "🎀 𝗠𝗔𝗥𝗜𝗡 𝗡𝗘𝗪𝗦\n" +
+                "━━━━━━━━━━━━━━\n" +
+                news
+            );
+        }
+
+
+        if (
+            lower.startsWith(
+                "news "
+            )
+        ) {
+
+            const topic =
+                text
+                    .slice(5)
+                    .trim();
+
+
+            const news =
+                await getNews(
+                    topic
+                );
+
+
+            return message.reply(
+
+                "🎀 𝗠𝗔𝗥𝗜𝗡 𝗡𝗘𝗪𝗦\n" +
+                "━━━━━━━━━━━━━━\n" +
+                `🔎 ${topic}\n\n` +
+                news
+            );
+        }
+
+
+        return this.chat(
+            api,
+            event,
+            message,
+            text
+        );
+    },
+
+
+    /* =========================
+       🧠 CHAT
+    ========================= */
+
+    chat: async function (
+        api,
+        event,
+        message,
+        text
+    ) {
+
+        try {
+
+            const uid =
+                String(
+                    event.senderID
+                );
+
+
+            const memory =
+                loadMemory();
+
+
+            if (
+                !memory[uid]
+            ) {
+
+                memory[uid] = {
+
+                    name:
+                        "Inconnu",
+
+                    messages:
+                        [],
+
+                    people:
+                        {},
+
+                    groups:
+                        {},
+
+                    behavior: {
+
+                        rude:
+                            0,
+
+                        creatorInsults:
+                            0,
+
+                        respect:
+                            0
+                    }
+                };
+            }
+
+
+            if (
+                !memory[uid].people
+            ) {
+
+                memory[uid].people = {};
+            }
+
+
+            if (
+                !memory[uid].messages
+            ) {
+
+                memory[uid].messages = [];
+            }
+
+
+            if (
+                !memory[uid].groups
+            ) {
+
+                memory[uid].groups = {};
+            }
+
+
+            /* 🧠 COMPORTEMENT */
+
+            const behavior =
+                getBehavior(
+                    memory,
+                    uid
+                );
+
+
+            const analysis =
+                analyzeBehavior(
+                    text
+                );
+
+
+            if (
+                analysis.rude
+            ) {
+
+                behavior.rude++;
+            }
+
+
+            if (
+                analysis.creatorInsult
+            ) {
+
+                behavior.creatorInsults++;
+            }
+
+
+            if (
+                !analysis.rude
+            ) {
+
+                behavior.respect++;
+            }
+
+
+            /* 👤 NOM */
+
+            const userName =
+                await getName(
+                    api,
+                    uid
+                );
+
+
+            if (
+
+                userName &&
+           
