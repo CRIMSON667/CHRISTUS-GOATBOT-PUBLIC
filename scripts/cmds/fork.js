@@ -16,7 +16,7 @@ module.exports = {
   onStart: async function ({ message }) {
     const text =
       `${HEADER}✅ Voici le dépôt officiel :\n\n` +
-      `https://github.com/voldigo-anos/CHRISTUS-GOATBOT-PUBLIC.git\n\n` +
+      `\n\n` +
       `Continue à nous soutenir ^_^`;
 
     message.reply(text);
