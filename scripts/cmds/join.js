@@ -1,81 +1,104 @@
-const axios = require("axios");
-const fs = require("fs-extra");
-const request = require("request");
-
 module.exports = {
   config: {
     name: "join",
-    version: "2.0",
-    author: "Kshitiz",
-    countDown: 5,
-    role: 5,
-    shortDescription: "Join the group that bot is in",
-    longDescription: "",
-    category: "tools",
-    guide: {
-      en: "{p}{n}",
-    },
+    aliases: ["rejoindre"],
+    version: "2.0.0",
+    author: "Brayan Slyde",
+    role: 2, // Admin uniquement
+    category: "admin",
+    shortDescription: "Affiche les groupes et permet de les rejoindre ou d'en faire quitter le bot",
+    guide: "{pn} | {pn} del <nombre>"
   },
 
-  onStart: async function ({ api, event }) {
+  onStart: async function ({ api, event, args, message }) {
+    // CAS 1 : SUPPRESSION / SORTIE DE GROUPES (ex: "join del 3")
+    if (args[0] === "del") {
+      const targetGroup = args[1];
+      
+      if (!targetGroup || isNaN(targetGroup)) {
+        return message.reply("Erreur : Spécifie le numéro du groupe à quitter.\nExemple : join del 2");
+      }
+
+      try {
+        const inbox = await api.getThreadList(100, null, ["INBOX"]);
+        const groupList = inbox.filter(group => group.isGroup && group.isSubscribed);
+        const index = parseInt(targetGroup) - 1;
+
+        if (index < 0 || index >= groupList.length) {
+          return message.reply(`Erreur : Le numéro ${targetGroup} n'existe pas dans la liste.`);
+        }
+
+        const selectedGroup = groupList[index];
+        await api.sendMessage("Le bot quitte ce groupe sur ordre de l'administrateur.", selectedGroup.threadID);
+        await api.removeUserFromGroup(api.getCurrentUserID(), selectedGroup.threadID);
+
+        return message.reply(`Succès : Le bot a quitté le groupe "${selectedGroup.name || selectedGroup.threadID}".`);
+      } catch (error) {
+        console.error(error);
+        return message.reply("Échec : Impossible de quitter ce groupe.");
+      }
+    }
+
+    // CAS 2 : LISTER LES GROUPES ET ATTENDRE UNE RÉPONSE
     try {
-      const groupList = await api.getThreadList(10, null, ['INBOX']);
+      const inbox = await api.getThreadList(100, null, ["INBOX"]);
+      const groupList = inbox.filter(group => group.isGroup && group.isSubscribed);
 
-      const filteredList = groupList.filter(group => group.threadName !== null);
+      if (groupList.length === 0) {
+        return message.reply("Le bot ne se trouve dans aucun groupe actuellement.");
+      }
 
-      if (filteredList.length === 0) {
-        api.sendMessage('No group chats found.', event.threadID);
-      } else {
-        const formattedList = filteredList.map((group, index) =>
-          `│${index + 1}. ${group.threadName}\n│𝐓𝐈𝐃: ${group.threadID}`
-        );
-        const message = `╭─╮\n│𝐋𝐢𝐬𝐭 𝐨𝐟 𝐠𝐫𝐨𝐮𝐩 𝐜𝐡𝐚𝐭𝐬:\n${formattedList.map(line => `${line}`).join("\n")}\n╰───────────ꔪ`;
+      let msg = "LISTE DES GROUPES DISPONIBLES :\n──────────────────\n";
+      groupList.forEach((group, index) => {
+        msg += `${index + 1}. ${group.name || "Groupe sans nom"}\n   (Membres : ${group.participantIDs.length})\n\n`;
+      });
+      msg += "──────────────────\nRéponds à ce message avec le NUMÉRO du groupe pour y être ajouté.";
 
-        const sentMessage = await api.sendMessage(message, event.threadID);
-        global.GoatBot.onReply.set(sentMessage.messageID, {
-          commandName: 'join',
-          messageID: sentMessage.messageID,
+      return message.reply(msg, (err, info) => {
+        if (err) return console.error(err);
+        
+        // Attache l'écouteur de réponse (Reply)
+        global.GoatBot.onReply.set(info.messageID, {
+          commandName: this.config.name,
+          messageID: info.messageID,
           author: event.senderID,
+          groupList: groupList.map(g => ({ threadID: g.threadID, name: g.name }))
         });
-      }
+      });
+
     } catch (error) {
-      console.error("Error listing group chats", error);
+      console.error(error);
+      return message.reply("Impossible de récupérer la liste des groupes.");
     }
   },
 
-  onReply: async function ({ api, event, Reply, args }) {
-    const { author, commandName } = Reply;
+  // GESTION DE LA RÉPONSE DE L'UTILISATEUR
+  onReply: async function ({ api, event, Reply, message }) {
+    const { author, groupList } = Reply;
 
+    // Sécurité : seul l'auteur de la commande initiale peut répondre
     if (event.senderID !== author) {
-      return;
+      return message.reply("Tu n'es pas autorisé à exécuter cette action.");
     }
 
-    const groupIndex = parseInt(args[0], 10);
+    const choice = parseInt(event.body.trim());
 
-    if (isNaN(groupIndex) || groupIndex <= 0) {
-      api.sendMessage('Invalid input.\nPlease provide a valid number.', event.threadID, event.messageID);
-      return;
+    if (isNaN(choice) || choice < 1 || choice > groupList.length) {
+      return message.reply(`Choix invalide. Entre un chiffre entre 1 et ${groupList.length}.`);
     }
+
+    const targetGroup = groupList[choice - 1];
 
     try {
-      const groupList = await api.getThreadList(10, null, ['INBOX']);
-      const filteredList = groupList.filter(group => group.threadName !== null);
-
-      if (groupIndex > filteredList.length) {
-        api.sendMessage('Invalid group number.\nPlease choose a number within the range.', event.threadID, event.messageID);
-        return;
-      }
-
-      const selectedGroup = filteredList[groupIndex - 1];
-      const groupID = selectedGroup.threadID;
-
-      await api.addUserToGroup(event.senderID, groupID);
-      api.sendMessage(`You have joined the group chat: ${selectedGroup.threadName}`, event.threadID, event.messageID);
+      // Ajoute l'utilisateur qui a répondu dans le groupe choisi
+      await api.addUserToGroup(event.senderID, targetGroup.threadID);
+      message.reply(`Succès : Tu as été ajouté au groupe "${targetGroup.name || targetGroup.threadID}".`);
     } catch (error) {
-      console.error("Error joining group chat", error);
-      api.sendMessage('An error occurred while joining the group chat.\nPlease try again later.', event.threadID, event.messageID);
-    } finally {
-      global.GoatBot.onReply.delete(event.messageID);
+      console.error(error);
+      message.reply(`Échec : Impossible de t'ajouter au groupe "${targetGroup.name}". Raisons possibles :\n- Le groupe bloque les ajouts directes.\n- Tu es déjà dans le groupe.\n- Tes paramètres de confidentialité Facebook bloquent cette action.`);
     }
-  },
+
+    // Nettoyage de l'écouteur
+    global.GoatBot.onReply.delete(Reply.messageID);
+  }
 };
