@@ -8,6 +8,21 @@ const MEMORY_FILE = path.join(__dirname, "marin_memory.json");
 const IMAGE_API = "https://gem-tw6a.onrender.com/generate";
 const AI_API_URL = "https://christus-s-apis.vercel.app/api/na/ai/gemini";
 
+// Fiche profil permanente de CRIMSON / Boss
+const BOSS_PROFILE = `
+INFOS BOSS SUPRÊME (CRIMSON):
+- Noms/Surnoms: Crimson, Brayan, reuf, Stack's.
+- Localisation & Études: RDC, 3e humanité option Électronique. Passionné d'informatique, téléphones, dev Node.js/JS, bots WhatsApp/Messenger.
+- Téléphone: TECNO Spark 50 série 4G (cherche l'optimisation).
+- Gaming: Free Fire (style Rush, Clash Squad, Headshots), PUBG Mobile, DLS, Car Parking Multiplayer, Arena Breakout, eFootball/FC Mobile.
+- Identifiants Gaming (Free Fire):
+  * UID Principal FF: 14221990151
+  * UID Secondaire FF: 16321696553
+- Animés: Solo Leveling, Blue Lock, Demon Slayer, My Hero Academia, Dr. Stone, Classroom of the Elite.
+- Style visual/identité: Dark, Crimson, futuriste, gaming/anime.
+- Communication attendue: Directe, pratique, pas de théorie inutile. Si son raisonnement flanche, dis-le-lui franchement sans tourner autour du pot.
+`;
+
 if (!fsSync.existsSync(MEMORY_FILE)) {
     fsSync.writeFileSync(MEMORY_FILE, "{}");
 }
@@ -133,7 +148,7 @@ module.exports = {
     config: {
         name: "ai",
         aliases: ["marin", "gpt"],
-        version: "6.8",
+        version: "7.5",
         author: "CRIMSON",
         countDown: 3,
         role: 0,
@@ -195,12 +210,6 @@ module.exports = {
                 );
             }
 
-            await message.reply(
-                "🎨 𝗠𝗔𝗥𝗜𝗡 𝗜𝗠𝗔𝗚𝗘\n" +
-                "━──────────────━\n" +
-                "⏳ Génération en cours..."
-            );
-
             const image = await generateImage(imgCheck.prompt);
 
             if (!image) {
@@ -236,9 +245,6 @@ module.exports = {
     },
 
     chat: async function (api, event, message, text) {
-        // Envoi du message d'attente
-        const loadingMsg = await message.reply("⏳ Réflexion en cours...");
-
         try {
             const uid = String(event.senderID);
             const memory = await loadMemory();
@@ -262,21 +268,36 @@ module.exports = {
                     name: target.name,
                     lastSeen: new Date().toISOString()
                 };
-                targetInfo = ` | Cible: ${target.name} (${target.uid})`;
+                targetInfo = ` | Personne taguée/cible: ${target.name} (UID: ${target.uid})`;
             }
 
-            const creator = uid === CREATOR_UID ? " [Créateur]" : "";
+            const isCreator = uid === CREATOR_UID;
+            const creatorTag = isCreator ? " [Créateur/Administration/CRIMSON le Boss]" : "";
+            const bossContext = isCreator ? BOSS_PROFILE : "";
+
             const historyText = memory[uid].messages.length > 0
                 ? " Historique récents: " + memory[uid].messages.map(m => `${m.role === 'user' ? 'Utilisateur' : 'Marin'}:${m.text}`).join(";")
                 : "";
 
-            const fullPrompt = `Consigne système: Tu es Marin Kitagawa. Utilisateur: ${memory[uid].name} (UID:${uid})${creator}${targetInfo}.${historyText} Réponds en français, sois très expressive, dynamique, drôle, utilise des emojis et un langage familier léger.\n\nMessage de l'utilisateur: ${text}`;
+            const systemInstruction = 
+                `Rôle: Tu es Marin Kitagawa, une IA vivante, expressive, drôle, dynamique et très observatrice. Tu te souviens de tout le monde.\n` +
+                `Interlocuteur: ${memory[uid].name} (UID: ${uid})${creatorTag}.\n` +
+                `${bossContext}\n` +
+                `${targetInfo}\n` +
+                `${historyText}\n` +
+                `Règles fondamentales:\n` +
+                `1. Si l'interlocuteur est CRIMSON (le créateur/boss), respecte son profil : sois directe, concrète, pas de blabla théorique inutile. S'il dit une bêtise ou a un raisonnement bancal, recadre-le franchement sans hésiter.\n` +
+                `2. Nomme toujours l'utilisateur par son nom dans la discussion. Si quelqu'un est tagué/mentionné, nomme la personne explicitement.\n` +
+                `3. Demande de l'administration sur un membre : Réponds d'abord 'facile' puis livre l'information, mais garde du cœur et de l'empathie.\n` +
+                `4. Politesse stricte : Si un utilisateur est malpoli, agressif ou néglige la politesse de base, réponds-lui très mal et remets-le à sa place instantanément. Si la personne s'excuse ou reste correcte, sois cool et dynamique.`;
 
             memory[uid].messages.push({ role: "user", text, date: new Date().toISOString() });
-            if (memory[uid].messages.length > 6) {
-                memory[uid].messages = memory[uid].messages.slice(-6);
+            if (memory[uid].messages.length > 8) {
+                memory[uid].messages = memory[uid].messages.slice(-8);
             }
             await saveMemory(memory);
+
+            const fullPrompt = `${systemInstruction}\n\nMessage de ${memory[uid].name}: ${text}`;
 
             const r = await axios.post(AI_API_URL, {
                 prompt: fullPrompt
@@ -305,15 +326,10 @@ module.exports = {
             }
 
             memory[uid].messages.push({ role: "assistant", text: answer, date: new Date().toISOString() });
-            if (memory[uid].messages.length > 6) {
-                memory[uid].messages = memory[uid].messages.slice(-6);
+            if (memory[uid].messages.length > 8) {
+                memory[uid].messages = memory[uid].messages.slice(-8);
             }
             await saveMemory(memory);
-
-            // Suppression du message d'attente
-            if (loadingMsg?.messageID) {
-                message.unsend(loadingMsg.messageID).catch(() => {});
-            }
 
             const responseText = `🎀 𝗠𝗔𝗥𝗜𝗡 𝗞𝗜𝗧𝗔𝗚𝗔𝗪𝗔\n━──────────────━\n${answer}`;
 
@@ -329,13 +345,7 @@ module.exports = {
         } catch (e) {
             console.error("❌ MARIN ERROR:", e.response?.data || e.message || e);
 
-            // Nettoyage du message d'attente en cas d'erreur
-            if (loadingMsg?.messageID) {
-                message.unsend(loadingMsg.messageID).catch(() => {});
-            }
-
             return message.reply("❌ 𝗠𝗔𝗥𝗜𝗡\n━──────────────━\nL'API Gemini ne répond pas. Réessaie plus tard.");
         }
     }
 };
-          
