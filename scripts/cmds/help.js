@@ -68,7 +68,7 @@ module.exports = {
         for (let i = 0; i < cmds.length; i += 3) {
           const line = cmds
             .slice(i, i + 3)
-            .map(c => `🌸 ${fonts.sansSerif(c)}`)
+            .map(c => `🌼 ${fonts.sansSerif(c)}`)
             .join("   ");
           msg += line + "\n";
         }
