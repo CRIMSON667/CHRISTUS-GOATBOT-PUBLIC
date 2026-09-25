@@ -2,7 +2,7 @@ module.exports = {
   config: {
     name: "supportgc",
     version: "1.4",
-    author: "CRIMSON 🩵🪽",
+    author: "CRIMSON 🪽",
     countDown: 30,
     role: 0,
     shortDescription: {
