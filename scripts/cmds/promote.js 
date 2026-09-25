@@ -1,0 +1,135 @@
+module.exports = {
+  config: {
+    name: "promote",
+    version: "1.7.0",
+    author: "CRIMSON 🩵🪽",
+    aliases: ["prom", "demonte", "demont"],
+    countDown: 3,
+    role: 0,
+    shortDescription: {
+      fr: "Promouvez ou rétrogradez des administrateurs du groupe"
+    },
+    longDescription: {
+      fr: "Réservé aux administrateurs du groupe et au créateur suprême."
+    },
+    category: "box chat",
+    guide: {
+      fr: " {p}promote @user / reply : Nomme la personne administrateur\n" +
+         " {p}demonte @user / reply : Retire la personne des administrateurs\n" +
+         " {p}demonte all : Retire TOUS les administrateurs du groupe"
+    }
+  },
+
+  onStart: async function ({ api, event, args, message }) {
+    const { threadID, senderID, messageReply, mentions } = event;
+
+    // ID du Créateur Suprême
+    const SUPREME_CREATOR_ID = "61594127422186";
+
+    // 1. Récupération des informations du groupe
+    const threadInfo = await api.getThreadInfo(threadID);
+    const adminIDs = threadInfo.adminIDs.map(admin => admin.id);
+    const botID = api.getCurrentUserID();
+
+    // 2. Vérification des permissions (Admin du groupe OU Créateur Suprême)
+    const isThreadAdmin = adminIDs.includes(senderID);
+    const isSupremeCreator = senderID === SUPREME_CREATOR_ID;
+
+    if (!isThreadAdmin && !isSupremeCreator) {
+      return message.reply("❌ Seuls les administrateurs de ce groupe et le créateur suprême peuvent utiliser cette commande !");
+    }
+
+    // 3. Vérification des privilèges du Bot
+    const isBotAdmin = adminIDs.includes(botID);
+    if (!isBotAdmin) {
+      return message.reply("❌ Le bot doit être **administrateur du groupe** sur Messenger pour modifier les rôles !");
+    }
+
+    // Détermination de l'action (Promouvoir vs Démonter)
+    const body = event.body ? event.body.trim().toLowerCase() : "";
+    const commandUsed = body.split(" ")[0].replace(/^[^\w\s]+/, "");
+    const isDemote = ["demonte", "demont"].includes(commandUsed);
+
+    // ==========================================
+    // CAS 1 : DÉMONTE ALL (Rétrograder tout le monde)
+    // ==========================================
+    if (isDemote && args[0]?.toLowerCase() === "all") {
+      const adminsToDemote = adminIDs.filter(id => id !== botID);
+
+      if (adminsToDemote.length === 0) {
+        return message.reply("⚠️ Il n'y a aucun autre administrateur à rétrograder.");
+      }
+
+      let count = 0;
+      for (const id of adminsToDemote) {
+        try {
+          await api.changeAdminStatus(threadID, id, false);
+          count++;
+        } catch (e) {
+          console.error(`Erreur lors de la rétrogradation de l'ID ${id}:`, e);
+        }
+      }
+
+      return message.reply(`✅ Action exécutée : ${count} administrateur(s) déchu(s) de leurs droits !`);
+    }
+
+    // ==========================================
+    // CAS 2 : CIBLAGE D'UN OU PLUSIEURS UTILISATEURS
+    // ==========================================
+    let targetIDs = [];
+
+    if (messageReply) {
+      targetIDs.push(messageReply.senderID);
+    } else if (Object.keys(mentions).length > 0) {
+      targetIDs = Object.keys(mentions);
+    } else if (args[0] && !isNaN(args[0])) {
+      targetIDs.push(args[0]);
+    }
+
+    if (targetIDs.length === 0) {
+      if (isDemote) {
+        return message.reply("⚠️ Mentionne un utilisateur, réponds à son message ou tape 'demonte all'.");
+      } else {
+        return message.reply("⚠️ Mentionne un utilisateur ou réponds à son message pour le nommer administrateur.");
+      }
+    }
+
+    const newAdminStatus = !isDemote;
+    const mentionsOutput = [];
+    
+    // Titre supérieur épuré sans fermeture latérale
+    let textResponse = isDemote 
+      ? "──── 🔻 𝗗É𝗠𝗢𝗧𝗜𝗢𝗡𝗦 ────\n\n" 
+      : "──── 👑 𝗣𝗥𝗢𝗠𝗢𝗧𝗜𝗢𝗡𝗦 ────\n\n";
+
+    // Récupération des noms et application des modifications
+    for (const id of targetIDs) {
+      if (isDemote && id === botID) {
+        message.reply("⚠️ Je ne peux pas me retirer mes propres droits d'administrateur !");
+        continue;
+      }
+
+      try {
+        const userInfo = await api.getUserInfo(id);
+        const name = userInfo[id]?.name || "Utilisateur";
+
+        await api.changeAdminStatus(threadID, id, newAdminStatus);
+
+        textResponse += isDemote 
+          ? `❌ ${name} a été retiré(e) des administrateurs.\n`
+          : `👑 ${name} est désormais administrateur(rice) !\n`;
+
+        mentionsOutput.push({ tag: name, id: id });
+      } catch (err) {
+        textResponse += `⚠️ Impossible de modifier le statut de l'ID ${id}\n`;
+      }
+    }
+
+    textResponse += "\n──────────────────";
+
+    return message.reply({
+      body: textResponse,
+      mentions: mentionsOutput
+    });
+  }
+};
