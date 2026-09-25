@@ -1,8 +1,8 @@
-module.exports = {
+cmd install promote.js module.exports = {
   config: {
     name: "promote",
-    version: "1.7.0",
-    author: "CRIMSON 🩵🪽",
+    version: "1.6.0",
+    author: "Brayan",
     aliases: ["prom", "demonte", "demont"],
     countDown: 3,
     role: 0,
@@ -96,11 +96,9 @@ module.exports = {
 
     const newAdminStatus = !isDemote;
     const mentionsOutput = [];
-    
-    // Titre supérieur épuré sans fermeture latérale
     let textResponse = isDemote 
-      ? "──── 🔻 𝗗É𝗠𝗢𝗧𝗜𝗢𝗡𝗦 ────\n\n" 
-      : "──── 👑 𝗣𝗥𝗢𝗠𝗢𝗧𝗜𝗢𝗡𝗦 ────\n\n";
+      ? "╭─── 🔻 DÉMOTIONS ───╮\n│\n" 
+      : "╭─── 👑 PROMOTIONS ───╮\n│\n";
 
     // Récupération des noms et application des modifications
     for (const id of targetIDs) {
@@ -116,16 +114,16 @@ module.exports = {
         await api.changeAdminStatus(threadID, id, newAdminStatus);
 
         textResponse += isDemote 
-          ? `❌ ${name} a été retiré(e) des administrateurs.\n`
-          : `👑 ${name} est désormais administrateur(rice) !\n`;
+          ? `│ ❌ ${name} a été retiré(e) de l'administration.\n`
+          : `│ 👑 ${name} est désormais administrateur(rice) !\n`;
 
         mentionsOutput.push({ tag: name, id: id });
       } catch (err) {
-        textResponse += `⚠️ Impossible de modifier le statut de l'ID ${id}\n`;
+        textResponse += `│ ⚠️ Erreur pour l'ID ${id}\n`;
       }
     }
 
-    textResponse += "\n──────────────────";
+    textResponse += "│\n╰─────────────────────────╯";
 
     return message.reply({
       body: textResponse,
