@@ -65,7 +65,7 @@ module.exports = {
  config: {
   name: "anti18",
   version: "1.1",
-  author: "Chitron Bhattacharje x DARK STACK'S",
+  author: "Chitron Bhattacharje x DAR STACK'S",
   role: 1,
   description: {
    en: "Auto-detects 18+ words and sends a warning image (toggleable)"
