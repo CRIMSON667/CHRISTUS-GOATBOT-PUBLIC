@@ -1,348 +1,767 @@
-const axios = require("axios");
-const fs = require("fs").promises;
-const fsSync = require("fs");
+cmd install ai.js const axios = require("axios");
+const fs = require("fs");
+const fsp = require("fs").promises;
 const path = require("path");
 
-const CREATOR_UID = "61594127422186";
 const MEMORY_FILE = path.join(__dirname, "marin_memory.json");
-const AI_API_URL = "https://christus-s-apis.vercel.app/api/na/ai/gemini";
 
-// Fiche profil permanente
-const BOSS_PROFILE = `
-INFOS BOSS SUPRÊME (CRIMSON):
-- Noms/Surnoms: Crimson, Brayan, reuf, Stack's.
-- Localisation & Études: RDC, 3e humanité option Électronique.
-- Gaming: Free Fire (UID Principal: 14221990151 | UID Secondaire: 16321696553), PUBG Mobile, DLS.
-- Style/Identité: Dark, Crimson, futuriste.
-- Directif d'interaction: Tu connais ces infos en arrière-plan. Ne les répète jamais dans tes réponses.
-`;
+const AI_API_URL =
+    "https://christus-s-apis.vercel.app/api/na/ai/gemini";
 
-if (!fsSync.existsSync(MEMORY_FILE)) {
-    fsSync.writeFileSync(MEMORY_FILE, "{}");
+const IMG2PROMPT_API_URL =
+    "https://smfahim.xyz/ai/img2prompt/v3";
+
+/* =========================
+   MÉMOIRE
+========================= */
+
+if (!fs.existsSync(MEMORY_FILE)) {
+    fs.writeFileSync(
+        MEMORY_FILE,
+        JSON.stringify({}, null, 2)
+    );
 }
 
 async function loadMemory() {
     try {
-        const data = await fs.readFile(MEMORY_FILE, "utf8");
-        return JSON.parse(data);
+        const data = await fsp.readFile(
+            MEMORY_FILE,
+            "utf8"
+        );
+
+        const memory = JSON.parse(data);
+
+        if (
+            !memory ||
+            typeof memory !== "object" ||
+            Array.isArray(memory)
+        ) {
+            return {};
+        }
+
+        return memory;
     } catch {
         return {};
     }
 }
 
-async function saveMemory(data) {
-    try {
-        await fs.writeFile(MEMORY_FILE, JSON.stringify(data, null, 2), "utf8");
-    } catch (err) {
-        console.error("❌ ERREUR MEMOIRE:", err.message);
-    }
+async function saveMemory(memory) {
+    await fsp.writeFile(
+        MEMORY_FILE,
+        JSON.stringify(memory, null, 2)
+    );
 }
+
+/* =========================
+   NOM UTILISATEUR
+========================= */
 
 async function getName(api, uid) {
     try {
-        const info = await new Promise((resolve, reject) => {
-            api.getUserInfo(uid, (err, data) => {
-                if (err) reject(err);
-                else resolve(data);
-            });
-        });
-        return info?.[uid]?.name || "Inconnu";
+        const info = await api.getUserInfo(uid);
+
+        return (
+            info?.[uid]?.name ||
+            "Utilisateur"
+        );
     } catch {
-        return "Inconnu";
+        return "Utilisateur";
     }
 }
 
-async function getGroupDetails(api, threadID, senderID) {
-    try {
-        const threadInfo = await new Promise((resolve, reject) => {
-            api.getThreadInfo(threadID, (err, info) => {
-                if (err) reject(err);
-                else resolve(info);
-            });
-        });
+/* =========================
+   IMAGES
+========================= */
 
-        const groupName = threadInfo?.threadName || "Discussion Privée / Groupe";
-        const adminIDs = (threadInfo?.adminIDs || []).map(a => String(a.id));
-        const isAdmin = adminIDs.includes(String(senderID));
+function extractImageUrls(event) {
+    const urls = [];
 
-        return { groupName, isAdmin };
-    } catch {
-        return { groupName: "Discussion / Groupe", isAdmin: false };
+    for (const att of event?.attachments || []) {
+        if (
+            (
+                att.type === "photo" ||
+                att.type === "image"
+            ) &&
+            att.url
+        ) {
+            urls.push(att.url);
+        }
     }
+
+    for (
+        const att of
+        event?.messageReply?.attachments || []
+    ) {
+        if (
+            (
+                att.type === "photo" ||
+                att.type === "image"
+            ) &&
+            att.url
+        ) {
+            urls.push(att.url);
+        }
+    }
+
+    return [...new Set(urls)];
 }
 
-async function generateAudio(text) {
+/* =========================
+   ANALYSE IMAGE
+========================= */
+
+async function analyzeImage(imageUrl) {
     try {
-        const cleanText = text
-            .replace(/[*_~`#━🎀]/g, "")
-            .trim()
-            .slice(0, 200);
+        const response = await axios.get(
+            IMG2PROMPT_API_URL,
+            {
+                params: {
+                    imageUrl,
+                    language: "fr",
+                    model: 0
+                },
+                timeout: 60000
+            }
+        );
 
-        if (!cleanText) return null;
+        const data = response.data;
 
-        const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=fr&client=tw-ob`;
-        const res = await axios.get(url, { responseType: "arraybuffer", timeout: 15000 });
-        
-        const audioPath = path.join(__dirname, `tts_${Date.now()}.mp3`);
-        await fs.writeFile(audioPath, Buffer.from(res.data));
-        return audioPath;
-    } catch (e) {
-        console.error("❌ AUDIO GENERATION ERROR:", e.message);
+        if (
+            data?.success &&
+            typeof data?.prompt === "string"
+        ) {
+            return data.prompt;
+        }
+
+        if (
+            typeof data?.prompt === "string"
+        ) {
+            return data.prompt;
+        }
+
+        if (
+            typeof data?.result?.prompt === "string"
+        ) {
+            return data.result.prompt;
+        }
+
+        if (
+            typeof data?.result === "string"
+        ) {
+            return data.result;
+        }
+
+        return null;
+
+    } catch (error) {
+
+        console.log(
+            "❌ Analyse image :",
+            error.message
+        );
+
         return null;
     }
 }
 
-function extractImageUrls(event) {
-    const urls = [];
-    
-    if (event.attachments && event.attachments.length) {
-        for (const att of event.attachments) {
-            if (att.type === "photo" && att.url) {
-                urls.push(att.url);
+/* =========================
+   RECHERCHE WEB
+========================= */
+
+async function searchWeb(query) {
+    try {
+
+        const response = await axios.get(
+            "https://www.google.com/search",
+            {
+                params: {
+                    q: query,
+                    hl: "fr"
+                },
+                headers: {
+                    "User-Agent":
+                        "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36"
+                },
+                timeout: 20000
             }
-        }
+        );
+
+        const html = response.data;
+
+        const text = html
+            .replace(
+                /<script[\s\S]*?<\/script>/gi,
+                " "
+            )
+            .replace(
+                /<style[\s\S]*?<\/style>/gi,
+                " "
+            )
+            .replace(
+                /<[^>]+>/g,
+                " "
+            )
+            .replace(
+                /\s+/g,
+                " "
+            )
+            .trim();
+
+        return text.substring(0, 12000);
+
+    } catch (error) {
+
+        console.log(
+            "❌ Recherche Web :",
+            error.message
+        );
+
+        return null;
     }
-    
-    if (event.messageReply?.attachments && event.messageReply.attachments.length) {
-        for (const att of event.messageReply.attachments) {
-            if (att.type === "photo" && att.url) {
-                urls.push(att.url);
-            }
-        }
-    }
-    
-    return urls;
 }
 
+/* =========================
+   DÉTECTION RECHERCHE
+========================= */
+
+function needsWebSearch(prompt) {
+
+    const words = [
+        "cherche",
+        "recherche",
+        "internet",
+        "web",
+        "info",
+        "information",
+        "informations",
+        "c'est quoi",
+        "c’est quoi",
+        "qui est",
+        "quel est",
+        "quelle est",
+        "prix",
+        "date",
+        "origine",
+        "histoire",
+        "actualité",
+        "actuel",
+        "actuelle",
+        "récent",
+        "récente",
+        "vérifie",
+        "vérifier",
+        "confirme",
+        "confirmer",
+        "identifie",
+        "identifier",
+        "nom",
+        "marque",
+        "modèle",
+        "produit",
+        "personnage",
+        "lieu"
+    ];
+
+    const lower =
+        prompt.toLowerCase();
+
+    return words.some(
+        word => lower.includes(word)
+    );
+}
+
+/* =========================
+   COMMANDE
+========================= */
+
 module.exports = {
+
     config: {
         name: "ai",
-        aliases: ["marin", "gpt", "box"],
-        version: "11.1",
-        author: "CRIMSON",
+        version: "18.0",
+        author: "CRIMSON D-SHADOW",
         countDown: 3,
         role: 0,
-        category: "ai"
+        category: "ai",
+
+        aliases: [
+            "marin",
+            "gpt",
+            "box"
+        ]
     },
 
-    onStart: async function ({ api, event, args, message }) {
-        const text = args.join(" ").trim();
-        return this.process(api, event, message, text || "salut");
+    /* =========================
+       ON START
+    ========================= */
+
+    onStart: async function ({
+        api,
+        event,
+        message,
+        args
+    }) {
+
+        const prompt =
+            args.join(" ").trim();
+
+        await this.process(
+            api,
+            event,
+            message,
+            prompt
+        );
     },
 
-    onChat: async function ({ api, event, message }) {
-        if (!event.body) return;
-        
-        const body = event.body.trim();
-        const lower = body.toLowerCase();
+    /* =========================
+       ON CHAT
+    ========================= */
 
-        const match = lower.match(/^(marine|marin|box)(\s+[\s\S]*)?$/);
-        if (!match) return;
+    onChat: async function ({
+        api,
+        event,
+        message
+    }) {
 
-        const prefixUsed = match[1];
-        const content = body.slice(prefixUsed.length).trim();
+        const body =
+            event?.body || "";
 
-        if (!content) {
-            return message.reply(
-                " 𝗠𝗔𝗥𝗜𝗡 𝗞𝗜𝗧𝗔𝗚𝗔𝗪𝗔 🎀\n" +
-                "━──────────────━\n" +
-                "Oui ? Je t'écoute ! 🎀"
-            );
+        if (
+            !/^(marin|marine|box)\b/i.test(body)
+        ) {
+            return;
         }
 
-        return this.process(api, event, message, content);
+        const prompt =
+            body
+                .replace(
+                    /^(marin|marine|box)\b/i,
+                    ""
+                )
+                .trim();
+
+        await this.process(
+            api,
+            event,
+            message,
+            prompt
+        );
     },
 
-    onReply: async function ({ api, event, message }) {
-        const text = event.body?.trim() || "";
-        return this.process(api, event, message, text);
+    /* =========================
+       ON REPLY
+    ========================= */
+
+    onReply: async function ({
+        api,
+        event,
+        message,
+        Reply
+    }) {
+
+        const prompt =
+            event?.body?.trim() || "";
+
+        const previousImages =
+            Array.isArray(Reply?.imageUrls)
+                ? Reply.imageUrls
+                : [];
+
+        await this.process(
+            api,
+            event,
+            message,
+            prompt,
+            previousImages
+        );
     },
 
-    process: async function (api, event, message, text) {
-        const lower = text.toLowerCase();
-        const isAudioRequested = lower.includes("vocal") || lower.includes("audio") || lower.includes("parle") || lower.includes("voix");
-        const imageUrls = extractImageUrls(event);
+    /* =========================
+       PROCESS
+    ========================= */
 
-        let replyContext = "";
-        if (event.messageReply?.body) {
-            replyContext = ` [RÉPONSE AU MESSAGE: "${event.messageReply.body}"]`;
-        }
+    process: async function (
+        api,
+        event,
+        message,
+        prompt,
+        previousImages = []
+    ) {
 
-        return this.chat(api, event, message, text, imageUrls, isAudioRequested, replyContext);
-    },
-
-    chat: async function (api, event, message, text, imageUrls = [], sendAudio = false, replyContext = "") {
         try {
-            const uid = String(event.senderID);
-            const threadID = String(event.threadID);
-            const memory = await loadMemory();
 
-            if (!memory[uid]) {
-                memory[uid] = { name: "Inconnu", messages: [], people: {} };
+            const uid =
+                event.senderID;
+
+            const name =
+                await getName(
+                    api,
+                    uid
+                );
+
+            /* =====================
+               RÉCUPÉRER LES IMAGES
+            ===================== */
+
+            let imageUrls =
+                extractImageUrls(event);
+
+            if (
+                imageUrls.length === 0 &&
+                Array.isArray(previousImages)
+            ) {
+                imageUrls =
+                    previousImages;
             }
 
-            const userName = await getName(api, uid);
-            if (userName && userName !== "Inconnu") {
-                memory[uid].name = userName;
-            }
+            /* =====================
+               ANALYSE
+            ===================== */
 
-            const { groupName, isAdmin } = await getGroupDetails(api, threadID, uid);
+            let imageContext = "";
 
-            const isCreator = uid === CREATOR_UID;
-            const creatorTag = isCreator ? " [Créateur/CRIMSON]" : "";
-            const adminTag = isAdmin ? " [ADMIN DU GROUPE]" : "";
-            const bossContext = isCreator ? BOSS_PROFILE : "";
+            if (
+                imageUrls.length > 0
+            ) {
 
-            // --- PREPARATION DES ACTIONS (SANS EXECUTION IMMEDIATE) ---
-            let pendingAction = null;
-            let directActionExecutedText = null;
+                const descriptions = [];
 
-            // 1. Détection du changement d'emoji
-            const emojiMatch = text.match(/(?:change|met|mets|modifie)\s+(?:l'|l’)?emoji\s+(?:en\s+|par\s+)?(\S+)/i);
-            if (emojiMatch && emojiMatch[1]) {
-                const targetEmoji = emojiMatch[1].trim();
-                pendingAction = () => {
-                    api.changeThreadEmoji(targetEmoji, threadID, (err) => {
-                        if (err) console.error("❌ Erreur changement emoji:", err);
-                    });
-                };
-                directActionExecutedText = `L'emoji du groupe va être changé en ${targetEmoji}`;
-            }
+                for (
+                    const imageUrl of imageUrls
+                ) {
 
-            // 2. Détection du changement de nom
-            const nameMatch = text.match(/(?:change|met|mets|modifie)\s+(?:le\s+)?nom(?:\s+du\s+groupe)?\s+(?:en\s+|par\s+)(.+)/i);
-            if (nameMatch && nameMatch[1]) {
-                const newName = nameMatch[1].trim();
-                pendingAction = () => {
-                    api.setTitle(newName, threadID, (err) => {
-                        if (err) console.error("❌ Erreur changement nom:", err);
-                    });
-                };
-                directActionExecutedText = `Le nom du groupe va être changé en "${newName}"`;
-            }
+                    const description =
+                        await analyzeImage(
+                            imageUrl
+                        );
 
-            // 3. Détection de l'expulsion (kick)
-            const kickMatch = text.match(/(?:vire|expulse|kick|enlève)\s+(.+)/i);
-            if (kickMatch) {
-                let targetUID = null;
-                if (event.messageReply?.senderID) {
-                    targetUID = event.messageReply.senderID;
-                } else if (event.mentions && Object.keys(event.mentions).length > 0) {
-                    targetUID = Object.keys(event.mentions)[0];
+                    if (description) {
+                        descriptions.push(
+                            description
+                        );
+                    }
                 }
 
-                if (targetUID) {
-                    pendingAction = () => {
-                        api.removeUserFromGroup(targetUID, threadID, (err) => {
-                            if (err) console.error("❌ Erreur expulsion:", err);
-                        });
-                    };
-                    directActionExecutedText = `Un membre va être expulsé du groupe`;
+                if (
+                    descriptions.length > 0
+                ) {
+
+                    imageContext = `
+📸 ANALYSE DE L'IMAGE
+
+${descriptions.join("\n\n")}
+
+Utilise cette analyse pour
+comprendre ce qui apparaît
+dans l'image.
+`;
                 }
             }
 
-            const historyText = memory[uid].messages.length > 0
-                ? " Hist: " + memory[uid].messages.map(m => `${m.role === 'user' ? 'U' : 'M'}:${m.text}`).join(";")
-                : "";
+            /* =====================
+               RECHERCHE WEB
+            ===================== */
 
-            let imagePromptContext = "";
-            if (imageUrls.length > 0) {
-                imagePromptContext = ` [IMAGE DÉTECTÉE: ${imageUrls.join(", ")}. Décris la photo envoyée et intègre son contenu dans ta réponse.]`;
+            let webContext = "";
+
+            const shouldSearch =
+                needsWebSearch(prompt) ||
+                (
+                    imageUrls.length > 0 &&
+                    /identifie|identifier|nom|marque|modèle|model|produit|personnage|lieu|information|info/i
+                        .test(prompt)
+                );
+
+            if (shouldSearch) {
+
+                const searchQuery = `
+${prompt}
+
+Éléments détectés dans l'image :
+${imageContext.substring(0, 3500)}
+`;
+
+                const searchResult =
+                    await searchWeb(
+                        searchQuery
+                    );
+
+                if (searchResult) {
+
+                    webContext = `
+🔎 INFORMATIONS TROUVÉES SUR LE WEB
+
+${searchResult}
+
+IMPORTANT :
+Utilise uniquement les informations
+pertinentes pour répondre.
+
+Si l'information n'est pas certaine,
+indique-le clairement.
+`;
+                }
             }
 
-            let audioPromptContext = "";
-            if (sendAudio) {
-                audioPromptContext = " [SITUATION : L'UTILISATEUR A DEMANDÉ UN VOCAL. Parle directement à l'oral comme si tu utilisais un micro.]";
+            /* =====================
+               QUESTION
+            ===================== */
+
+            const userPrompt =
+                prompt ||
+                (
+                    imageUrls.length > 0
+                        ? "Analyse cette image et donne-moi les informations importantes."
+                        : "Bonjour Marin"
+                );
+
+            /* =====================
+               PERSONNALITÉ MARIN
+            ===================== */
+
+            const fullPrompt = `
+Tu es MARIN KITAGAWA 🎀.
+
+Tu gardes toujours une personnalité
+inspirée de Marin Kitagawa :
+joyeuse, expressive, naturelle,
+amicale et énergique.
+
+Tu réponds principalement en français.
+
+STYLE :
+✨ Utilise quelques emojis naturellement.
+💬 Garde des réponses humaines et fluides.
+📌 Utilise cet emoji pour les informations importantes.
+🔎 Utilise cet emoji lorsqu'il s'agit d'une recherche.
+💡 Utilise cet emoji pour une explication.
+✅ Pour une information confirmée.
+⚠️ Pour une information incertaine.
+
+Ne mets PAS un emoji après chaque phrase.
+Les emojis doivent décorer la réponse,
+pas la rendre illisible.
+
+RECHERCHE :
+Quand une recherche Web est effectuée,
+donne de vraies informations trouvées.
+Ne fabrique jamais une information
+qui n'est pas présente dans les données.
+
+IMAGE :
+Si une image est fournie,
+utilise son analyse.
+
+Si l'utilisateur demande :
+- ce qu'il y a sur l'image
+- le nom d'un objet
+- une marque
+- un modèle
+- un personnage
+- un lieu
+- un produit
+- une information concernant l'image
+
+utilise l'analyse de l'image et,
+si nécessaire, les informations Web.
+
+Si les informations trouvées ne
+permettent pas une identification fiable,
+dis-le franchement.
+
+========================
+
+👤 UTILISATEUR :
+${name}
+
+${imageContext}
+
+${webContext}
+
+========================
+
+💬 QUESTION :
+${userPrompt}
+`;
+
+            /* =====================
+               APPEL IA
+            ===================== */
+
+            const response =
+                await axios.post(
+                    AI_API_URL,
+                    {
+                        prompt: fullPrompt
+                    },
+                    {
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        timeout: 60000
+                    }
+                );
+
+            const data =
+                response.data;
+
+            let answer = null;
+
+            if (
+                typeof data?.result?.answer ===
+                "string"
+            ) {
+                answer =
+                    data.result.answer;
             }
 
-            let actionPromptContext = "";
-            if (directActionExecutedText) {
-                actionPromptContext = ` [SYSTÈME : "${directActionExecutedText}". Confirme à l'utilisateur que tu vas le faire ou que c'est en cours avec enthousiasme.]`;
+            else if (
+                typeof data?.answer ===
+                "string"
+            ) {
+                answer =
+                    data.answer;
             }
 
-            const systemInstruction = 
-                `Tu es Marin Kitagawa, expressive, directe, drôle, dynamique, adorant utiliser des emojis ✨.\n` +
-                `Interlocuteur: ${memory[uid].name} (${uid})${creatorTag}${adminTag}.\n` +
-                `Groupe actuel: "${groupName}" (ID: ${threadID}).\n` +
-                `${bossContext}\n` +
-                `${historyText}\n` +
-                `CONSIGNES DE STYLE :\n` +
-                `1. N'hésite pas à utiliser des emojis expressifs dans tes réponses ✨.\n` +
-                `2. Si une action a été demandée, confirme-la avec dynamisme.`;
+            else if (
+                typeof data?.result ===
+                "string"
+            ) {
+                answer =
+                    data.result;
+            }
 
-            const fullPrompt = `${systemInstruction}\n${actionPromptContext}\n${audioPromptContext}\n${imagePromptContext}\n${replyContext}\nMessage de ${memory[uid].name}: ${text || "Regarde ça"}`;
+            else if (
+                typeof data?.response ===
+                "string"
+            ) {
+                answer =
+                    data.response;
+            }
 
-            memory[uid].messages.push({ role: "user", text: text || "[Image/Reply]", date: new Date().toISOString() });
-            if (memory[uid].messages.length > 8) memory[uid].messages = memory[uid].messages.slice(-8);
-            await saveMemory(memory);
+            else if (
+                typeof data?.message ===
+                "string"
+            ) {
+                answer =
+                    data.message;
+            }
 
-            const payload = {
-                prompt: fullPrompt,
-                image_url: imageUrls.length > 0 ? imageUrls[0] : null,
-                images: imageUrls
-            };
-
-            const r = await axios.post(AI_API_URL, payload, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 35000
-            });
-
-            const data = r.data;
-            let answer = "";
-
-            if (typeof data === "string") {
-                answer = data;
-            } else if (data && typeof data === "object") {
-                answer = 
-                    data.result?.answer || 
-                    data.answer || 
-                    (typeof data.result === "string" ? data.result : null) ||
-                    (typeof data.response === "string" ? data.response : null) ||
-                    data.message || 
+            else if (
+                typeof data?.text ===
+                "string"
+            ) {
+                answer =
                     data.text;
             }
 
-            if (!answer || typeof answer !== "string") {
-                answer = "Désolée, je n'ai pas pu analyser le message ou l'image correctement.";
+            if (!answer) {
+                throw new Error(
+                    "L'API IA n'a renvoyé aucune réponse."
+                );
             }
 
-            memory[uid].messages.push({ role: "assistant", text: answer, date: new Date().toISOString() });
-            if (memory[uid].messages.length > 8) memory[uid].messages = memory[uid].messages.slice(-8);
-            await saveMemory(memory);
+            /* =====================
+               MÉMOIRE
+            ===================== */
 
-            const responseText = ` 𝗠𝗔𝗥𝗜𝗡 𝗞𝗜𝗧𝗔𝗚𝗔𝗪𝗔 🎀\n━──────────────━\n${answer}`;
+            const memory =
+                await loadMemory();
 
-            let audioFilePath = null;
-            if (sendAudio) {
-                audioFilePath = await generateAudio(answer);
+            if (
+                !Array.isArray(memory[uid])
+            ) {
+                memory[uid] = [];
             }
 
-            let sent;
-            if (audioFilePath && fsSync.existsSync(audioFilePath)) {
-                sent = await message.reply({
-                    body: responseText,
-                    attachment: fsSync.createReadStream(audioFilePath)
-                });
-                fs.unlink(audioFilePath).catch(() => {});
-            } else {
-                sent = await message.reply(responseText);
+            memory[uid].push({
+                user: userPrompt,
+                assistant: answer,
+                timestamp: Date.now()
+            });
+
+            if (
+                memory[uid].length > 20
+            ) {
+                memory[uid] =
+                    memory[uid].slice(-20);
             }
 
-            // --- EXECUTION DE L'ACTION APRES L'ENVOI DU MESSAGE ---
-            if (pendingAction) {
-                pendingAction();
+            await saveMemory(
+                memory
+            );
+
+            /* =====================
+               STYLE FINAL
+            ===================== */
+
+            const decoratedAnswer =
+`🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨
+━━━━━━━━━━━━━━━━━━━━━━
+${answer}`;
+
+            const sent =
+                await message.reply(
+                    decoratedAnswer
+                );
+
+            /* =====================
+               CONSERVER L'IMAGE
+            ===================== */
+
+            if (
+                sent?.messageID &&
+                global.GoatBot?.onReply
+            ) {
+
+                global.GoatBot.onReply.set(
+                    sent.messageID,
+                    {
+                        commandName:
+                            this.config.name,
+
+                        author:
+                            uid,
+
+                        imageUrls:
+                            imageUrls
+                    }
+                );
             }
 
-            if (sent?.messageID && global.GoatBot?.onReply) {
-                global.GoatBot.onReply.set(sent.messageID, {
-                    commandName: this.config.name,
-                    author: uid
-                });
-            }
+        } catch (error) {
 
-        } catch (e) {
-            console.error("❌ MARIN ERROR:", e.response?.data || e.message || e);
-            return message.reply(" 𝗠𝗔𝗥𝗜𝗡 𝗞𝗜𝗧𝗔𝗚𝗔𝗪𝗔 🎀\n━──────────────━\nL'API Gemini ne répond pas. Réessaie plus tard.");
+            console.log(
+                "\n========== MARIN ERROR =========="
+            );
+
+            console.log(
+                "MESSAGE :",
+                error?.message
+            );
+
+            console.log(
+                "STATUS :",
+                error?.response?.status
+            );
+
+            console.log(
+                "DATA :",
+                error?.response?.data
+            );
+
+            console.log(
+                "=================================\n"
+            );
+
+            await message.reply(
+`🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨
+━━━━━━━━━━━━━━━━━━━━━━
+❌ Une erreur est survenue.
+
+${error?.message || "Erreur inconnue"}`
+            );
         }
     }
 };
