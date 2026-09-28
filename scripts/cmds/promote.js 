@@ -1,4 +1,4 @@
-cmd install promote.js module.exports = {
+module.exports = {
   config: {
     name: "promote",
     version: "1.7.0",
