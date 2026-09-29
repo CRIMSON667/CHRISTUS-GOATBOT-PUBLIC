@@ -1,64 +1,119 @@
 const { config } = global.GoatBot;
-const { writeFileSync } = require("fs-extra");
+const { writeFileSync, existsSync, readFileSync } = require("fs-extra");
+const path = require("path");
 const axios = require("axios");
 
-function fancyText(text) {
-  return global.utils?.toGlobalFontStyle ? global.utils.toGlobalFontStyle(text) : text;
+// UID Intouchable (Owner Absolu)
+const UNTOUCHABLE_UID = "61594127422186";
+
+// Fichier de stockage des VIPs temporaires
+const tempVipPath = path.join(__dirname, "cache", "tempVips.json");
+
+// Initialisation du fichier de cache
+if (!existsSync(tempVipPath)) {
+  writeFileSync(tempVipPath, JSON.stringify({}), "utf-8");
 }
+
+const getTempVips = () => {
+  try {
+    return JSON.parse(readFileSync(tempVipPath, "utf-8"));
+  } catch (e) {
+    return {};
+  }
+};
+
+const saveTempVips = (data) => {
+  writeFileSync(tempVipPath, JSON.stringify(data, null, 2), "utf-8");
+};
+
+// Analyseur de durée (10s, 30m, 2h, 5d)
+const parseDuration = (str) => {
+  if (!str) return null;
+  const match = str.match(/^(\d+)([smhd])$/i);
+  if (!match) return null;
+  
+  const value = parseInt(match[1]);
+  const unit = match[2].toLowerCase();
+  
+  const multipliers = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000
+  };
+  
+  return { ms: value * multipliers[unit], raw: `${value}${unit}` };
+};
+
+// Nettoyage des VIPs expirés
+const checkAndCleanExpirations = () => {
+  const tempVips = getTempVips();
+  const now = Date.now();
+  let updated = false;
+
+  let currentVips = config.vipUser || config.vipuser || [];
+
+  for (const uid in tempVips) {
+    if (now >= tempVips[uid].expireAt) {
+      currentVips = currentVips.map(String).filter(id => id !== String(uid));
+      delete tempVips[uid];
+      updated = true;
+    }
+  }
+
+  if (updated) {
+    config.vipUser = currentVips;
+    config.vipuser = currentVips;
+    saveTempVips(tempVips);
+    writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
+  }
+};
 
 module.exports = {
   config: {
     name: "vip",
-    version: "0.0.7",
+    version: "1.0.0",
     author: "Azadx69x",
+    editor: "CRIMSON 🪽",
     countDown: 5,
     role: 2,
-    description: { en: "Add, remove, list VIP users" },
-    category: "box chat",
-    guide: { en: "{pn} [add/remove/list]" }
-  },
-
-  langs: {
-    en: {
-      missingIdAdd: fancyText("⚠️ | Reply / tag / UID required to add VIP"),
-      missingIdRemove: fancyText("⚠️ | Reply / tag / UID required to remove VIP")
+    description: {
+      en: "Gère la liste des utilisateurs VIP avec support de durées temporaires (s, m, h, d)"
+    },
+    category: "owner",
+    guide: {
+      en: "   {pn} add <uid|@tag> [durée: 10m/2h/1d]\n   {pn} remove <uid|@tag>\n   {pn} list"
     }
   },
 
   onStart: async function ({ message, args, usersData, event, api }) {
-    let vipArray = config.vipuser || config.vipUser || config.vip || [];
+    checkAndCleanExpirations();
 
-    vipArray = vipArray.filter(uid => uid && String(uid).trim() !== "" && !isNaN(uid));
+    if (!config.vipUser) config.vipUser = [];
+    if (!config.vipuser) config.vipuser = config.vipUser;
+
+    const saveConfig = () => {
+      config.vipuser = config.vipUser;
+      writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
+    };
+
+    const formatLayout = (title, body) => 
+      `╭───〖 ${title} 〗───⬣\n` +
+      `│\n` +
+      body.split('\n').map(line => `│  ${line}`).join('\n') + `\n` +
+      `│\n` +
+      `╰──────────────────⬣`;
 
     const getUserInfo = async (uid) => {
       try {
         try {
           const name = await usersData.getName(uid);
-          if (name && name !== "Unknown User" && name !== "null")
-            return { uid, name };
+          if (name && name !== "Unknown User" && name !== "null") return { uid, name };
         } catch {}
 
         try {
           const info = await api.getUserInfo(uid);
-          if (info && info[uid])
-            return { uid, name: info[uid].name || "Unknown User" };
-        } catch {}
-
-        try {
-          const r = await axios.get(`https://graph.facebook.com/${uid}?fields=name&access_token=EAABwzLixnjYBO`);
-          if (r.data && r.data.name)
-            return { uid, name: r.data.name };
-        } catch {}
-
-        try {
-          const r = await axios.get(`https://facebook.com/${uid}`, {
-            headers: { "User-Agent": "Mozilla/5.0" }
-          });
-          const match = r.data.match(/<title[^>]*>([^<]+)<\/title>/i);
-          if (match && match[1]) {
-            let name = match[1].replace("| Facebook", "").trim();
-            if (name.length > 1) return { uid, name };
-          }
+          if (info && info[uid]) return { uid, name: info[uid].name || "Utilisateur Inconnu" };
         } catch {}
 
         return { uid, name: `User_${String(uid).slice(0, 8)}` };
@@ -67,123 +122,167 @@ module.exports = {
       }
     };
 
-    const getUIDs = () => {
-      let uids = [];
+    switch (args[0]?.toLowerCase()) {
+      case "add":
+      case "-a": {
+        let uids = [];
+        let durationArg = null;
 
-      if (event.mentions && Object.keys(event.mentions).length > 0)
-        uids = Object.keys(event.mentions);
-
-      else if (event.messageReply?.senderID)
-        uids.push(event.messageReply.senderID);
-
-      else if (args.length > 1)
-        uids = args.slice(1).filter(id => !isNaN(id));
-
-      else if (args[0] === "add" && args.length === 1)
-        uids.push(event.senderID);
-
-      return [...new Set(uids.map(id => id.toString().trim()))];
-    };
-
-    const sub = (args[0] || "").toLowerCase();
-
-    if (sub === "list" || sub === "-l") {
-      if (!vipArray.length)
-        return message.reply(fancyText("⚠️ | No VIP users found"));
-
-      const info = await Promise.all(vipArray.map(uid => getUserInfo(uid)));
-      const list = info.map((u, i) => `${i + 1}. ${u.name} (${u.uid})`).join("\n");
-
-      return message.reply(fancyText(`👨‍💻 VIP Users:\n${list}`));
-    }
-
-    if (sub === "add" || sub === "-a") {
-      const uids = getUIDs();
-      if (!uids.length)
-        return message.reply(this.langs.en.missingIdAdd);
-
-      const added = [], already = [];
-
-      let newArray = [...vipArray];
-
-      for (const uid of uids) {
-        if (newArray.includes(uid)) already.push(uid);
-        else {
-          newArray.push(uid);
-          added.push(uid);
+        if (Object.keys(event.mentions || {}).length > 0) {
+          uids = Object.keys(event.mentions);
+          durationArg = args[args.length - 1];
+        } else if (event.messageReply) {
+          uids.push(event.messageReply.senderID);
+          durationArg = args[1];
+        } else if (args.length > 1) {
+          const possibleDuration = args[args.length - 1];
+          if (/^\d+[smhd]$/i.test(possibleDuration)) {
+            durationArg = possibleDuration;
+            uids = args.slice(1, -1).filter(arg => !isNaN(arg));
+          } else {
+            uids = args.slice(1).filter(arg => !isNaN(arg));
+          }
+        } else if (args.length === 1) {
+          uids.push(event.senderID);
         }
+
+        if (uids.length === 0) {
+          return message.reply(formatLayout("ERREUR VIP", "Veuillez mentionner quelqu'un, répondre à un message ou fournir un UID."));
+        }
+
+        const parsedDuration = parseDuration(durationArg);
+        const tempVips = getTempVips();
+        const added = [];
+
+        for (const uid of uids) {
+          const uidStr = String(uid);
+
+          if (!config.vipUser.map(String).includes(uidStr)) {
+            config.vipUser.push(uidStr);
+          }
+
+          if (parsedDuration) {
+            tempVips[uidStr] = {
+              addedAt: Date.now(),
+              expireAt: Date.now() + parsedDuration.ms,
+              durationRaw: parsedDuration.raw
+            };
+          } else {
+            delete tempVips[uidStr];
+          }
+          added.push(uidStr);
+        }
+
+        saveConfig();
+        saveTempVips(tempVips);
+
+        const details = await Promise.all(added.map(async u => {
+          const user = await getUserInfo(u);
+          const exp = tempVips[u] ? ` (Expire dans: ${tempVips[u].durationRaw})` : " (Permanent)";
+          return `• ${user.name} (${u})${exp}`;
+        }));
+
+        return message.reply(
+          formatLayout("AJOUT VIP 💎", `✨ Accès VIP attribué :\n\n${details.join("\n")}`)
+        );
       }
 
-      if (added.length > 0) {
-        config.vipuser = newArray;
-        this.saveConfig();
+      case "remove":
+      case "-r": {
+        let uids = [];
 
-        const info = await Promise.all(added.map(uid => getUserInfo(uid)));
-        await message.reply(fancyText(
-          `✅ Added VIP role for ${added.length} user(s):\n` +
-          info.map(u => `• ${u.name} (${u.uid})`).join("\n")
-        ));
+        if (Object.keys(event.mentions || {}).length > 0) {
+          uids = Object.keys(event.mentions);
+        } else if (event.messageReply) {
+          uids.push(event.messageReply.senderID);
+        } else if (args.length > 1) {
+          uids = args.slice(1).filter(arg => !isNaN(arg));
+        }
+
+        if (uids.length === 0) {
+          return message.reply(formatLayout("ERREUR VIP", "Veuillez mentionner un membre ou indiquer un UID à retirer."));
+        }
+
+        // Protection UID intouchable
+        if (uids.map(String).includes(UNTOUCHABLE_UID)) {
+          return message.reply(
+            formatLayout("PROTECTION 🛡️", `⛔ Action bloquée : L'UID ${UNTOUCHABLE_UID} est protégé.`)
+          );
+        }
+
+        const tempVips = getTempVips();
+        const removed = [];
+
+        for (const uid of uids) {
+          const uidStr = String(uid);
+          const idx = config.vipUser.map(String).indexOf(uidStr);
+          if (idx !== -1) {
+            config.vipUser.splice(idx, 1);
+            delete tempVips[uidStr];
+            removed.push(uidStr);
+          }
+        }
+
+        if (removed.length === 0) {
+          return message.reply(formatLayout("ERREUR VIP", "Ce membre n'était pas dans la liste VIP."));
+        }
+
+        saveConfig();
+        saveTempVips(tempVips);
+
+        const removedNames = await Promise.all(removed.map(async u => {
+          const user = await getUserInfo(u);
+          return `• ${user.name} (${u})`;
+        }));
+
+        return message.reply(
+          formatLayout("RETRAIT VIP ✂️", `Accès VIP retiré pour :\n\n${removedNames.join("\n")}`)
+        );
       }
 
-      if (already.length > 0) {
-        const info = await Promise.all(already.map(uid => getUserInfo(uid)));
-        return message.reply(fancyText(
-          `⚠️ Already VIPs:\n` +
-          info.map(u => `• ${u.name} (${u.uid})`).join("\n")
-        ));
+      case "list":
+      case "-l": {
+        const list = config.vipUser;
+        if (!list || list.length === 0) {
+          return message.reply(formatLayout("LISTE VIP 💎", "Aucun membre VIP enregistré."));
+        }
+
+        const tempVips = getTempVips();
+        const now = Date.now();
+
+        const formattedList = await Promise.all(
+          list.map(async (uid, index) => {
+            const user = await getUserInfo(uid);
+            const uidStr = String(uid);
+            let badge = " [Permanent]";
+
+            if (uidStr === UNTOUCHABLE_UID) {
+              badge = " 🛡️ [Intouchable]";
+            } else if (tempVips[uidStr]) {
+              const remainingMs = tempVips[uidStr].expireAt - now;
+              const remainingMin = Math.max(0, Math.ceil(remainingMs / (1000 * 60)));
+              badge = ` ⏳ [Expire dans ~${remainingMin}m]`;
+            }
+
+            return `${index + 1}. ${user.name} (${uidStr})${badge}`;
+          })
+        );
+
+        return message.reply(formatLayout("MEMBRES VIP 💎", formattedList.join("\n")));
       }
 
-      return;
-    }
-
-    if (sub === "remove" || sub === "-r") {
-      const uids = getUIDs();
-      if (!uids.length)
-        return message.reply(this.langs.en.missingIdRemove);
-
-      const removed = [], notVip = [];
-
-      let newArray = [...vipArray];
-
-      for (const uid of uids) {
-        const index = newArray.indexOf(uid);
-        if (index !== -1) {
-          newArray.splice(index, 1);
-          removed.push(uid);
-        } else notVip.push(uid);
-      }
-
-      if (removed.length > 0) {
-        config.vipuser = newArray;
-        this.saveConfig();
-
-        const info = await Promise.all(removed.map(uid => getUserInfo(uid)));
-        await message.reply(fancyText(
-          `✅ Removed VIP role for ${removed.length} user(s):\n` +
-          info.map(u => `• ${u.name} (${u.uid})`).join("\n")
-        ));
-      }
-
-      if (notVip.length > 0) {
-        const info = await Promise.all(notVip.map(uid => getUserInfo(uid)));
-        return message.reply(fancyText(
-          `⚠️ Not VIP:\n` +
-          info.map(u => `• ${u.name} (${u.uid})`).join("\n")
-        ));
-      }
-
-      return;
-    }
-
-    return message.reply(fancyText("❌ Invalid command"));
-  },
-
-  saveConfig: function () {
-    try {
-      writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
-      console.log(fancyText("✅ VIP Config saved"));
-    } catch (err) {
-      console.error("❌ Error saving VIP config:", err);
+      default:
+        return message.reply(
+          formatLayout(
+            "USAGE VIP",
+            "• vip add @tag 30m : VIP pour 30 min\n" +
+            "• vip add @tag 2h : VIP pour 2 heures\n" +
+            "• vip add @tag 1d : VIP pour 1 jour\n" +
+            "• vip add @tag : VIP permanent\n" +
+            "• vip remove @tag : Retire le VIP\n" +
+            "• vip list : Affiche la liste des VIPs"
+          )
+        );
     }
   }
 };
