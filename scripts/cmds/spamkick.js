@@ -1,118 +1,221 @@
 module.exports.config = {
- name: "spamkick",
- version: "4.0.0",
- role: 1,
- author: "stack's",
- description: "Auto kick spammer",
- category: "group",
- guide: "[on/off]"
+  name: "spamkick",
+  version: "5.0.0",
+  role: 1,
+  author: "stack's",
+  description: "Anti-spam et protection contre les longs messages",
+  category: "group",
+  guide: "[on/off]"
 };
 
 module.exports.onStart = async ({ api, event, args }) => {
- if (!global.antispam) global.antispam = new Map();
+  if (!global.antispam) global.antispam = new Map();
 
- const threadID = event.threadID;
+  const threadID = event.threadID;
+  const action = args[0]?.toLowerCase();
 
- if (args[0] === "on") {
+  if (action === "on") {
+    if (global.antispam.has(threadID)) {
+      return api.sendMessage(
+`╭━━━〔 🩸 𝐂𝐑𝐈𝐌𝐒𝐎𝐍 𝐃-𝐒𝐇𝐀𝐃𝐎𝐖 〕━━━╮
+┃ ⚠️ 𝐀𝐍𝐓𝐈-𝐒𝐏𝐀𝐌
+┃
+┃ ▸ Statut : DÉJÀ ACTIF
+┃ ▸ Protection : 🛡️ ACTIVE
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+        threadID
+      );
+    }
 
-  if (global.antispam.has(threadID)) {
-   return api.sendMessage(
-`╔══════════════════╗
-║ ⚠️ 𝗔𝗡𝗧𝗜-𝗦𝗣𝗔𝗠 ⚠️ ║
-╠══════════════════╣
-║ Déjà activé dans ce groupe
-╚══════════════════╝`, threadID);
+    global.antispam.set(threadID, {
+      users: {}
+    });
+
+    return api.sendMessage(
+`╭━━━〔 🩸 𝐂𝐑𝐈𝐌𝐒𝐎𝐍 𝐃-𝐒𝐇𝐀𝐃𝐎𝐖 〕━━━╮
+┃ 🛡️ 𝐀𝐍𝐓𝐈-𝐒𝐏𝐀𝐌
+┃
+┃ ✓ Système activé
+┃ ⚔️ 6 messages / 15 secondes
+┃ ☠️ +20 lignes détectées
+┃ 🔓 cmd install : autorisé
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+      threadID
+    );
   }
 
-  global.antispam.set(threadID, { users: {} });
+  if (action === "off") {
+    if (!global.antispam.has(threadID)) {
+      return api.sendMessage(
+`╭━━━〔 🩸 𝐂𝐑𝐈𝐌𝐒𝐎𝐍 𝐃-𝐒𝐇𝐀𝐃𝐎𝐖 〕━━━╮
+┃ ⚠️ 𝐀𝐍𝐓𝐈-𝐒𝐏𝐀𝐌
+┃
+┃ ▸ Statut : DÉJÀ INACTIF
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+        threadID
+      );
+    }
 
-  return api.sendMessage(
-`╔══════════════════╗
-║ ✅ 𝗔𝗡𝗧𝗜-𝗦𝗣𝗔𝗠 ✅ ║
-╠══════════════════╣
-║ Système activé avec succès
-╚══════════════════╝`, threadID);
- }
+    global.antispam.delete(threadID);
 
- if (args[0] === "off") {
-
-  if (!global.antispam.has(threadID)) {
-   return api.sendMessage(
-`╔══════════════════╗
-║ ⚠️ 𝗔𝗡𝗧𝗜-𝗦𝗣𝗔𝗠 ⚠️ ║
-╠══════════════════╣
-║ Déjà désactivé
-╚══════════════════╝`, threadID);
+    return api.sendMessage(
+`╭━━━〔 🩸 𝐂𝐑𝐈𝐌𝐒𝐎𝐍 𝐃-𝐒𝐇𝐀𝐃𝐎𝐖 〕━━━╮
+┃ ❌ 𝐀𝐍𝐓𝐈-𝐒𝐏𝐀𝐌
+┃
+┃ ✓ Système désactivé
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+      threadID
+    );
   }
 
-  global.antispam.delete(threadID);
-
   return api.sendMessage(
-`╔══════════════════╗
-║ ❌ 𝗔𝗡𝗧𝗜-𝗦𝗣𝗔𝗠 ❌ ║
-╠══════════════════╣
-║ Système désactivé
-╚══════════════════╝`, threadID);
- }
-
- return api.sendMessage("Utilise: spamkick on / off", threadID);
+`╭━━━〔 🩸 𝐂𝐑𝐈𝐌𝐒𝐎𝐍 𝐃-𝐒𝐇𝐀𝐃𝐎𝐖 〕━━━╮
+┃ ⚠️ 𝐔𝐓𝐈𝐋𝐈𝐒𝐀𝐓𝐈𝐎𝐍
+┃
+┃ ▸ spamkick on
+┃ ▸ spamkick off
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+    threadID
+  );
 };
 
+
 module.exports.onChat = async ({ api, event, usersData }) => {
- const { senderID, threadID } = event;
+  const { senderID, threadID, body } = event;
 
- if (!global.antispam) global.antispam = new Map();
- if (!global.antispam.has(threadID)) return;
+  if (!global.antispam || !global.antispam.has(threadID)) return;
 
- let data = global.antispam.get(threadID);
+  const data = global.antispam.get(threadID);
 
- if (!data.users[senderID]) {
-  data.users[senderID] = { count: 1, time: Date.now() };
- } else {
-  data.users[senderID].count++;
- }
+  const LIMIT_MSG = 6;
+  const LIMIT_TIME = 15000;
+  const MAX_LINES = 20;
 
- let user = data.users[senderID];
- let timePassed = Date.now() - user.time;
+  const message = typeof body === "string" ? body : "";
+  const now = Date.now();
 
- const LIMIT_MSG = 6;
- const LIMIT_TIME = 15000;
+  /*
+   * =========================
+   * MESSAGE cmd install
+   * =========================
+   */
 
- if (user.count >= LIMIT_MSG && timePassed < LIMIT_TIME) {
-  try {
-   await api.removeUserFromGroup(senderID, threadID);
+  const startsWithInstall =
+    message.trim().toLowerCase().startsWith("cmd install");
 
-   const name = await usersData.getName(senderID);
+  /*
+   * =========================
+   * MESSAGE DE PLUS DE 20 LIGNES
+   * =========================
+   */
 
-   api.sendMessage(
-`╔══════════════════╗
-║ 🚫 𝗦𝗣𝗔𝗠 𝗗𝗘𝗧𝗘𝗖𝗧𝗘𝗗 ║
-╠══════════════════╣
-║ ${name} a été expulsé
-║ Raison: spam abusif
-╚══════════════════╝`, threadID);
+  const lineCount = message
+    ? message.split(/\r\n|\r|\n/).length
+    : 0;
 
-  } catch (e) {
+  if (lineCount > MAX_LINES && !startsWithInstall) {
+    try {
+      const name = await usersData.getName(senderID);
 
-   const name = await usersData.getName(senderID);
+      await api.removeUserFromGroup(senderID, threadID);
 
-   api.sendMessage(
-`╔══════════════════╗
-║ ⚠️ 𝗘𝗥𝗥𝗘𝗨𝗥 ⚠️ ║
-╠══════════════════╣
-║ Impossible de kick ${name}
-║ (admin ou permission)
-╚══════════════════╝`, threadID);
+      await api.sendMessage(
+`╭━━━〔 ☠️ 𝐂𝐑𝐈𝐌𝐒𝐎𝐍 𝐃-𝐒𝐇𝐀𝐃𝐎𝐖 〕━━━╮
+┃ 🚫 𝐋𝐎𝐍𝐆 𝐌𝐄𝐒𝐒𝐀𝐆𝐄
+┃
+┃ 👤 Cible : ${name}
+┃ 📜 Lignes : ${lineCount}
+┃ 📏 Limite : ${MAX_LINES}
+┃
+┃ ☠️ Sanction : EXPULSION
+┃ ▸ Message trop long
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+        threadID
+      );
 
-   console.log("Erreur kick:", e);
+      delete data.users[senderID];
+      global.antispam.set(threadID, data);
+      return;
+
+    } catch (e) {
+      console.log("Erreur kick long message:", e);
+      return api.sendMessage(
+`╭━━━〔 ⚠️ 𝐂𝐑𝐈𝐌𝐒𝐎𝐍 𝐃-𝐒𝐇𝐀𝐃𝐎𝐖 〕━━━╮
+┃ ❌ 𝐊𝐈𝐂𝐊 𝐅𝐀𝐈𝐋𝐄𝐃
+┃
+┃ Impossible d'expulser l'utilisateur.
+┃ 🔑 Vérifie les permissions du bot.
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+        threadID
+      );
+    }
   }
 
-  data.users[senderID] = { count: 1, time: Date.now() };
- }
 
- if (timePassed > LIMIT_TIME) {
-  data.users[senderID] = { count: 1, time: Date.now() };
- }
+  /*
+   * =========================
+   * ANTI-SPAM
+   * =========================
+   */
 
- global.antispam.set(threadID, data);
+  if (!data.users[senderID]) {
+    data.users[senderID] = {
+      count: 1,
+      time: now
+    };
+  } else {
+    const user = data.users[senderID];
+
+    if (now - user.time > LIMIT_TIME) {
+      data.users[senderID] = {
+        count: 1,
+        time: now
+      };
+    } else {
+      user.count++;
+    }
+  }
+
+  const user = data.users[senderID];
+
+  if (
+    user.count >= LIMIT_MSG &&
+    now - user.time <= LIMIT_TIME
+  ) {
+    try {
+      const name = await usersData.getName(senderID);
+
+      await api.removeUserFromGroup(senderID, threadID);
+
+      await api.sendMessage(
+`╭━━━〔 🩸 𝐂𝐑𝐈𝐌𝐒𝐎𝐍 𝐃-𝐒𝐇𝐀𝐃𝐎𝐖 〕━━━╮
+┃ 🚫 𝐒𝐏𝐀𝐌 𝐃𝐄𝐓𝐄𝐂𝐓𝐄𝐃
+┃
+┃ 👤 Cible : ${name}
+┃ 💬 Messages : ${user.count}
+┃ ⏱️ Temps : 15 secondes
+┃
+┃ ☠️ Sanction : EXPULSION
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+        threadID
+      );
+
+      delete data.users[senderID];
+
+    } catch (e) {
+      console.log("Erreur kick spam:", e);
+
+      api.sendMessage(
+`╭━━━〔 ⚠️ 𝐂𝐑𝐈𝐌𝐒𝐎𝐍 𝐃-𝐒𝐇𝐀𝐃𝐎𝐖 〕━━━╮
+┃ ❌ 𝐊𝐈𝐂𝐊 𝐅𝐀𝐈𝐋𝐄𝐃
+┃
+┃ Impossible d'expulser l'utilisateur.
+┃ 🔑 Le bot doit être administrateur.
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+        threadID
+      );
+    }
+  }
+
+  global.antispam.set(threadID, data);
 };
