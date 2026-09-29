@@ -1,191 +1,285 @@
 const { config } = global.GoatBot;
 const { writeFileSync } = require("fs-extra");
 
+if (!global.noprefixTimers) {
+  global.noprefixTimers = new Map();
+}
+
+function parseDuration(args) {
+  if (!args || args.length === 0) return null;
+
+  const lastTwo = args.slice(-2).join(" ").toLowerCase();
+  const matchTwo = lastTwo.match(/^(\d+)\s*([s|m|h|d])$/i);
+
+  if (matchTwo) {
+    const val = parseInt(matchTwo[1]);
+    const unit = matchTwo[2];
+    const ms = unit === "s" ? val * 1000 : unit === "m" ? val * 60000 : unit === "h" ? val * 3600000 : val * 86400000;
+    return { ms, str: `${val}${unit}`, consumedArgs: 2 };
+  }
+
+  const lastOne = args[args.length - 1]?.toLowerCase();
+  const matchOne = lastOne?.match(/^(\d+)([s|m|h|d])$/i);
+
+  if (matchOne) {
+    const val = parseInt(matchOne[1]);
+    const unit = matchOne[2];
+    const ms = unit === "s" ? val * 1000 : unit === "m" ? val * 60000 : unit === "h" ? val * 3600000 : val * 86400000;
+    return { ms, str: `${val}${unit}`, consumedArgs: 1 };
+  }
+
+  return null;
+}
+
+function formatRemainingTime(expireTimestamp) {
+  const remaining = expireTimestamp - Date.now();
+  if (remaining <= 0) return "Expiré";
+
+  const s = Math.floor((remaining / 1000) % 60);
+  const m = Math.floor((remaining / (1000 * 60)) % 60);
+  const h = Math.floor((remaining / (1000 * 60 * 60)) % 24);
+  const d = Math.floor(remaining / (1000 * 60 * 60 * 24));
+
+  let res = [];
+  if (d > 0) res.push(`${d}d`);
+  if (h > 0) res.push(`${h}h`);
+  if (m > 0) res.push(`${m}m`);
+  if (s > 0 || res.length === 0) res.push(`${s}s`);
+
+  return res.join(" ");
+}
+
 module.exports = {
-	config: {
-		name: "noprefix",
-		aliases: ["nopx", "npx"],
-		version: "1.0",
-		author: "Christus",
-		countDown: 5,
-		role: 6,
-		description: {
-			vi: "Thêm, xóa quyền dùng lệnh không cần prefix",
-			en: "Add, remove permission to use commands without prefix"
-		},
-		category: "owner",
-		guide: {
-			vi: '   {pn} [add | -a] <uid | @tag>: Thêm quyền noprefix cho người dùng'
-				+ '\n   {pn} [remove | -r] <uid | @tag>: Xóa quyền noprefix của người dùng'
-				+ '\n   {pn} [list | -l]: Liệt kê danh sách noprefix'
-				+ '\n   {pn} [check | -c] <uid | @tag>: Kiểm tra người dùng có quyền noprefix không'
-				+ '\n   {pn} on: Bật tính năng noprefix'
-				+ '\n   {pn} off: Tắt tính năng noprefix',
-			en: '   {pn} [add | -a] <uid | @tag>: Add noprefix permission for user'
-				+ '\n   {pn} [remove | -r] <uid | @tag>: Remove noprefix permission of user'
-				+ '\n   {pn} [list | -l]: List all noprefix users'
-				+ '\n   {pn} [check | -c] <uid | @tag>: Check if a user has noprefix permission'
-				+ '\n   {pn} on: Turn ON the noprefix feature'
-				+ '\n   {pn} off: Turn OFF the noprefix feature'
-		}
-	},
+  config: {
+    name: "noprefix",
+    aliases: ["nopx", "npx"],
+    version: "2.3",
+    author: "Christus",
+    editor: "CRIMSON 🪽",
+    countDown: 5,
+    role: 2,
+    description: {
+      en: "Gère le droit Noprefix avec chrono dynamique (s, m, h, d)"
+    },
+    category: "owner",
+    guide: {
+      en: "📋 NOPREFIX USAGE:\n" +
+        "   {pn} [add | -a] <uid | @tag> <durée> (ex: 2 s, 2m, 1 h, 3d)\n" +
+        "   {pn} [remove | -r] <uid | @tag>\n" +
+        "   {pn} [list | -l]: Liste des membres\n" +
+        "   {pn} [check | -c] <uid | @tag>: Vérifier un membre\n" +
+        "   {pn} on / off: Activer ou désactiver"
+    }
+  },
 
-	langs: {
-		vi: {
-			added: "✓ | Đã thêm quyền noprefix cho %1 người dùng:\n%2",
-			alreadyNoPrefix: "\n⚠ | %1 người dùng đã có quyền noprefix từ trước rồi:\n%2",
-			missingIdAdd: "⚠ | Vui lòng nhập ID hoặc tag người dùng muốn thêm quyền noprefix",
-			removed: "✓ | Đã xóa quyền noprefix của %1 người dùng:\n%2",
-			notNoPrefix: "⚠ | %1 người dùng không có quyền noprefix:\n%2",
-			missingIdRemove: "⚠ | Vui lòng nhập ID hoặc tag người dùng muốn xóa quyền noprefix",
-			listNoPrefix: "★ | Danh sách noprefix users:\n%1",
-			listEmpty: "★ | Hiện chưa có ai có quyền noprefix",
-			checkInfo: "✓ | %1 (%2) %3 quyền sử dụng lệnh không cần prefix",
-			checkYes: "có",
-			checkNo: "không có",
-			turnedOn: "✓ | Đã BẬT tính năng noprefix, các admin bot và người dùng trong danh sách có thể dùng lệnh không cần prefix",
-			turnedOff: "✓ | Đã TẮT tính năng noprefix, tất cả mọi người đều phải dùng prefix để gọi lệnh",
-			alreadyOn: "⚠ | Tính năng noprefix đã được bật từ trước rồi",
-			alreadyOff: "⚠ | Tính năng noprefix đã được tắt từ trước rồi"
-		},
-		en: {
-			added: "✓ | Added noprefix permission for %1 users:\n%2",
-			alreadyNoPrefix: "\n⚠ | %1 users already have noprefix permission:\n%2",
-			missingIdAdd: "⚠ | Please enter ID or tag user to add noprefix permission",
-			removed: "✓ | Removed noprefix permission of %1 users:\n%2",
-			notNoPrefix: "⚠ | %1 users don't have noprefix permission:\n%2",
-			missingIdRemove: "⚠ | Please enter ID or tag user to remove noprefix permission",
-			listNoPrefix: "★ | List of noprefix users:\n%1",
-			listEmpty: "★ | No one has noprefix permission yet",
-			checkInfo: "✓ | %1 (%2) %3 permission to use commands without prefix",
-			checkYes: "has",
-			checkNo: "does not have",
-			turnedOn: "✓ | Noprefix feature is now ON, bot admins and listed users can use commands without prefix",
-			turnedOff: "✓ | Noprefix feature is now OFF, everyone must use the prefix to call commands",
-			alreadyOn: "⚠ | Noprefix feature is already ON",
-			alreadyOff: "⚠ | Noprefix feature is already OFF"
-		}
-	},
+  langs: {
+    en: {
+      missingIdAdd: "💖 Oups ! Tag quelqu'un ou donne un UID valide !",
+      missingIdRemove: "💬 Mentionne ou indique l'UID du membre à retirer !",
+      listEmpty: "💔 Aucun membre n'a le Noprefix pour l'instant !",
+      turnedOn: "🔥 𝗠𝗼𝗱𝗲 𝗡𝗼𝗽𝗿𝗲𝗳𝗶𝗫 𝗔𝗖𝗧𝗜𝗩𝗘́ !\nLes admins et membres autorisés peuvent lancer les commandes direct !",
+      turnedOff: "🔓 𝗠𝗼𝗱𝗲 𝗡𝗼𝗽𝗿𝗲𝗳𝗶𝗫 𝗗𝗘́𝗦𝗔𝗖𝗧𝗜𝗩𝗘́ !\nTout le monde doit remettre le prefix !",
+      alreadyOn: "✨ Le mode Noprefix est déjà actif !",
+      alreadyOff: "💬 Le mode Noprefix est déjà désactivé !"
+    }
+  },
 
-	onStart: async function ({ message, args, usersData, event, getLang }) {
-		if (!config.noPrefixUser)
-			config.noPrefixUser = [];
+  onStart: async function ({ message, args, usersData, event, getLang }) {
+    if (!config.noPrefixUser) config.noPrefixUser = [];
 
-		switch (args[0]) {
-			case "add":
-			case "-a": {
-				if (args[1]) {
-					let uids = [];
-					if (Object.keys(event.mentions).length > 0)
-						uids = Object.keys(event.mentions);
-					else if (event.messageReply)
-						uids.push(event.messageReply.senderID);
-					else
-						uids = args.filter(arg => !isNaN(arg));
+    const saveConfig = () => writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
+    const formatLayout = (title, body) => `${title}\n★━━━━━━━━━━━━━━━━━━★\n\n\n${body}`;
 
-					const notNoPrefixIds = [];
-					const noPrefixIds = [];
+    switch (args[0]?.toLowerCase()) {
+      case "add":
+      case "-a": {
+        let uids = [];
+        const parsed = parseDuration(args);
 
-					for (const uid of uids) {
-						if (config.noPrefixUser.includes(uid))
-							noPrefixIds.push(uid);
-						else
-							notNoPrefixIds.push(uid);
-					}
+        if (Object.keys(event.mentions || {}).length > 0) {
+          uids = Object.keys(event.mentions);
+        } else if (event.messageReply) {
+          uids.push(event.messageReply.senderID);
+        } else if (args.length > 1) {
+          const sliceEnd = parsed ? args.length - parsed.consumedArgs : args.length;
+          uids = args.slice(1, sliceEnd).filter(arg => !isNaN(arg));
+        }
 
-					config.noPrefixUser.push(...notNoPrefixIds);
+        if (uids.length === 0) return message.reply(formatLayout("⚠️ 𝗘𝗥𝗥𝗘𝗨𝗥 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫", getLang("missingIdAdd")));
 
-					const getNames = await Promise.all(notNoPrefixIds.map(uid => usersData.getName(uid).then(name => ({ uid, name }))));
-					writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
+        const added = [];
+        const alreadyExists = [];
 
-					return message.reply(
-						(notNoPrefixIds.length > 0 ? getLang("added", notNoPrefixIds.length, getNames.map(({ uid, name }) => `• ${name} (${uid})`).join("\n")) : "")
-						+ (noPrefixIds.length > 0 ? getLang("alreadyNoPrefix", noPrefixIds.length, noPrefixIds.map(uid => `• ${uid}`).join("\n")) : "")
-					);
-				}
-				else
-					return message.reply(getLang("missingIdAdd"));
-			}
-			case "remove":
-			case "-r": {
-				if (args[1]) {
-					let uids = [];
-					if (Object.keys(event.mentions).length > 0)
-						uids = Object.keys(event.mentions);
-					else if (event.messageReply)
-						uids.push(event.messageReply.senderID);
-					else
-						uids = args.filter(arg => !isNaN(arg));
+        for (const uid of uids) {
+          const uidStr = String(uid);
+          if (config.noPrefixUser.map(String).includes(uidStr)) {
+            alreadyExists.push(uidStr);
+          } else {
+            config.noPrefixUser.push(uidStr);
+            added.push(uidStr);
 
-					const notNoPrefixIds = [];
-					const noPrefixIds = [];
+            if (parsed) {
+              const expireAt = Date.now() + parsed.ms;
 
-					for (const uid of uids) {
-						if (config.noPrefixUser.includes(uid))
-							noPrefixIds.push(uid);
-						else
-							notNoPrefixIds.push(uid);
-					}
+              if (global.noprefixTimers.has(uidStr)) {
+                clearTimeout(global.noprefixTimers.get(uidStr).timer);
+              }
 
-					for (const uid of noPrefixIds)
-						config.noPrefixUser.splice(config.noPrefixUser.indexOf(uid), 1);
+              const timer = setTimeout(async () => {
+                const idx = config.noPrefixUser.map(String).indexOf(uidStr);
+                if (idx !== -1) {
+                  config.noPrefixUser.splice(idx, 1);
+                  saveConfig();
+                  global.noprefixTimers.delete(uidStr);
 
-					const getNames = await Promise.all(noPrefixIds.map(uid => usersData.getName(uid).then(name => ({ uid, name }))));
-					writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
+                  try {
+                    const userName = await usersData.getName(uidStr);
+                    message.reply(
+                      formatLayout(
+                        "🚨 𝗘𝗫𝗣𝗜𝗥𝗔𝗧𝗜𝗢𝗡 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫",
+                        `⏱️️ 𝗟𝖾 𝗍𝖾𝗆𝗉𝗌 𝖾𝗌𝗍 é𝖼𝗈𝗎𝗅é 𝗉𝗈𝗎𝗋 ${userName} (${uidStr}) !\n𝗔𝖼𝖼è𝗌 𝗡𝗈𝗉𝗋𝖾𝖿𝗂𝗑 𝖼𝗈𝗎𝗉é.`
+                      )
+                    );
+                  } catch (e) {}
+                }
+              }, parsed.ms);
 
-					return message.reply(
-						(noPrefixIds.length > 0 ? getLang("removed", noPrefixIds.length, getNames.map(({ uid, name }) => `• ${name} (${uid})`).join("\n")) : "")
-						+ (notNoPrefixIds.length > 0 ? getLang("notNoPrefix", notNoPrefixIds.length, notNoPrefixIds.map(uid => `• ${uid}`).join("\n")) : "")
-					);
-				}
-				else
-					return message.reply(getLang("missingIdRemove"));
-			}
-			case "list":
-			case "-l": {
-				if (config.noPrefixUser.length === 0)
-					return message.reply(getLang("listEmpty"));
+              global.noprefixTimers.set(uidStr, { timer, expireAt });
+            }
+          }
+        }
 
-				const getNames = await Promise.all(config.noPrefixUser.map(uid => usersData.getName(uid).then(name => ({ uid, name }))));
-				return message.reply(getLang("listNoPrefix", getNames.map(({ uid, name }) => `• ${name} (${uid})`).join("\n")));
-			}
-			case "check":
-			case "-c": {
-				let uid;
-				if (Object.keys(event.mentions).length > 0)
-					uid = Object.keys(event.mentions)[0];
-				else if (event.messageReply)
-					uid = event.messageReply.senderID;
-				else if (args[1] && !isNaN(args[1]))
-					uid = args[1];
-				else
-					uid = event.senderID;
+        saveConfig();
 
-				const name = await usersData.getName(uid);
-				const hasNoPrefix = config.noPrefixUser.includes(uid);
-				return message.reply(getLang("checkInfo", name, uid, hasNoPrefix ? getLang("checkYes") : getLang("checkNo")));
-			}
-			case "on": {
-				if (config.noPrefix === false) {
-					config.noPrefix = true;
-					writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
-					return message.reply(getLang("turnedOn"));
-				}
-				else
-					return message.reply(getLang("alreadyOn"));
-			}
-			case "off": {
-				if (config.noPrefix !== false) {
-					config.noPrefix = false;
-					writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
-					return message.reply(getLang("turnedOff"));
-				}
-				else
-					return message.reply(getLang("alreadyOff"));
-			}
-			default:
-				return message.SyntaxError();
-		}
-	}
+        const addedNames = await Promise.all(added.map(async u => `• ${await usersData.getName(u)} (${u})`));
+        const alreadyNames = await Promise.all(alreadyExists.map(async u => `• ${await usersData.getName(u)} (${u})`));
+
+        let title = "✨ 𝗔𝗝𝗢𝗨𝗧 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫";
+        let body = "";
+
+        if (added.length > 0) {
+          if (parsed) {
+            body += `🎉 ${added.length} membre(s) ajouté(s) :\n${addedNames.join("\n")}\n\n⏳ Durée : ${parsed.str}\n⚠️ L'accès coupera automatiquement à la fin du chrono !`;
+          } else {
+            body += `🎉 ${added.length} membre(s) ajouté(s) (Illimité) :\n${addedNames.join("\n")}`;
+          }
+        }
+
+        if (alreadyExists.length > 0) {
+          body += `${body ? "\n\n" : ""}🌸 Déjà dans la liste :\n${alreadyNames.join("\n")}`;
+        }
+
+        return message.reply(formatLayout(title, body));
+      }
+
+      case "remove":
+      case "-r": {
+        let uids = [];
+
+        if (Object.keys(event.mentions || {}).length > 0) {
+          uids = Object.keys(event.mentions);
+        } else if (event.messageReply) {
+          uids.push(event.messageReply.senderID);
+        } else if (args.length > 1) {
+          uids = args.slice(1).filter(arg => !isNaN(arg));
+        }
+
+        if (uids.length === 0) return message.reply(formatLayout("⚠️ 𝗘𝗥𝗥𝗘𝗨𝗥 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫", getLang("missingIdRemove")));
+
+        const removed = [];
+        for (const uid of uids) {
+          const uidStr = String(uid);
+          const idx = config.noPrefixUser.map(String).indexOf(uidStr);
+          if (idx !== -1) {
+            config.noPrefixUser.splice(idx, 1);
+            removed.push(uidStr);
+
+            if (global.noprefixTimers.has(uidStr)) {
+              clearTimeout(global.noprefixTimers.get(uidStr).timer);
+              global.noprefixTimers.delete(uidStr);
+            }
+          }
+        }
+
+        if (removed.length === 0) {
+          return message.reply(formatLayout("⚠️ 𝗘𝗥𝗥𝗘𝗨𝗥 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫", "Ce membre n'était pas dans la liste Noprefix."));
+        }
+
+        saveConfig();
+        const removedNames = await Promise.all(removed.map(async u => `• ${await usersData.getName(u)} (${u})`));
+
+        return message.reply(
+          formatLayout("✂️ 𝗥𝗘𝗧𝗥𝗔𝗜𝗧 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫", `Accès retiré pour :\n${removedNames.join("\n")}`)
+        );
+      }
+
+      case "list":
+      case "-l": {
+        const list = config.noPrefixUser;
+        if (list.length === 0) return message.reply(formatLayout("👑 𝗟𝗜𝗦𝗧𝗘 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫 — 𝗠𝗔𝗥𝗜𝗡 𝗦𝗧𝗬𝗟𝗘 💖", getLang("listEmpty")));
+
+        const formattedList = await Promise.all(
+          list.map(async (uid, index) => {
+            const name = await usersData.getName(uid);
+            const timerData = global.noprefixTimers.get(String(uid));
+
+            if (timerData) {
+              const remainingStr = formatRemainingTime(timerData.expireAt);
+              return ` ${index + 1}. ${name} (${uid})\n    └─ ⏱️ Temps restant : ${remainingStr}`;
+            }
+            return ` ${index + 1}. ${name} (${uid}) — [𝗜𝗅𝗅𝗂𝗆𝗂𝗍é]`;
+          })
+        );
+
+        return message.reply(
+          formatLayout("👑 𝗟𝗜𝗦𝗧𝗘 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫 — 𝗠𝗔𝗥𝗜𝗡 𝗦𝗧𝗬𝗟𝗘 💖", formattedList.join("\n"))
+        );
+      }
+
+      case "check":
+      case "-c": {
+        let uid = Object.keys(event.mentions || {}).length > 0
+          ? Object.keys(event.mentions)[0]
+          : event.messageReply
+          ? event.messageReply.senderID
+          : (args[1] && !isNaN(args[1])) ? args[1] : event.senderID;
+
+        const name = await usersData.getName(uid);
+        const hasNoPrefix = config.noPrefixUser.map(String).includes(String(uid));
+        const timerData = global.noprefixTimers.get(String(uid));
+
+        let statusStr = hasNoPrefix ? "a le Noprefix" : "n'a pas le Noprefix";
+        if (hasNoPrefix && timerData) {
+          statusStr += ` (Temps restant : ${formatRemainingTime(timerData.expireAt)})`;
+        } else if (hasNoPrefix) {
+          statusStr += " [Illimité]";
+        }
+
+        return message.reply(formatLayout("🔍 𝗩𝗘́𝗥𝗜𝗙𝗜𝗖𝗔𝗧𝗜𝗢𝗡 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫", `✨ ${name} (${uid}) ${statusStr} !`));
+      }
+
+      case "on": {
+        if (config.noPrefix === false) {
+          config.noPrefix = true;
+          saveConfig();
+          return message.reply(formatLayout("🔥 𝗠𝗢𝗗𝗘 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫", getLang("turnedOn")));
+        } else {
+          return message.reply(formatLayout("🔥 𝗠𝗢𝗗𝗘 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫", getLang("alreadyOn")));
+        }
+      }
+
+      case "off": {
+        if (config.noPrefix !== false) {
+          config.noPrefix = false;
+          saveConfig();
+          return message.reply(formatLayout("🔓 𝗠𝗢𝗗𝗘 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫", getLang("turnedOff")));
+        } else {
+          return message.reply(formatLayout("🔓 𝗠𝗢𝗗𝗘 𝗡𝗢𝗣𝗥𝗘𝗙𝗜𝗫", getLang("alreadyOff")));
+        }
+      }
+
+      default:
+        return message.SyntaxError();
+    }
+  }
 };
-                
