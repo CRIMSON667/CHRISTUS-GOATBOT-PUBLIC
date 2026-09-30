@@ -4,7 +4,7 @@ const path = require("path");
 const axios = require("axios");
 
 // UID Intouchable (Owner Absolu)
-const UNTOUCHABLE_UID = "61594127422186";
+const UNTOUCHABLE_UID = "61594978289028";
 
 // Fichier de stockage des VIPs temporaires
 const tempVipPath = path.join(__dirname, "cache", "tempVips.json");
