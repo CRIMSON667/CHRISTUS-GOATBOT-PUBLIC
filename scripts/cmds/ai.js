@@ -287,7 +287,7 @@ module.exports = {
         aliases: [
             "marin",
             "gpt",
-            "box"
+            "ai"
         ]
     },
 
