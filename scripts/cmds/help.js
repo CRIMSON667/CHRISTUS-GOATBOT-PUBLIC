@@ -82,7 +82,7 @@ module.exports = {
 				for (let i = 0; i < cmds.length; i += 3) {
 					const line = cmds
 						.slice(i, i + 3)
-						.map(c => ✿ ${fonts.sansSerif(c)}`)
+						.map(c => `🌼 ${fonts.sansSerif(c)}`)
 						.join("   ");
 
 					msg += line + "\n";
@@ -222,7 +222,7 @@ module.exports = {
 						? "Bot admin"
 						: "Unknown";
 
-		const detail = `${fonts.bold(`╭─── 🩵 ${toTitleCase(cfg.name)} ───`)}
+		const detail = `${fonts.bold(`╭─── 🌸 ${toTitleCase(cfg.name)} ───`)}
 
 │ 乂 Name: ${fonts.sansSerif(cfg.name)}
 │ ➤ Author: ${cfg.author || "Unknown"}
