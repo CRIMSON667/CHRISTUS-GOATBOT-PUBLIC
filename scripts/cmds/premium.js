@@ -8,7 +8,7 @@ module.exports = {
 		version: "1.1",
 		author: "NeoKEX • fixed by Christus",
 		countDown: 5,
-		role: 2,
+		role: 1,
 
 		description: {
 			vi: "Thêm, xóa quyền premium user với thời gian",
