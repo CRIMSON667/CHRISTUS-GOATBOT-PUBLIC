@@ -79,7 +79,7 @@ module.exports = {
     author: "Christus",
     editor: "CRIMSON 🪽",
     countDown: 5,
-    role: 2,
+    role: 1,
 
     description: {
       en: "Gère le droit Noprefix avec chrono dynamique (s, m, h, d)",
