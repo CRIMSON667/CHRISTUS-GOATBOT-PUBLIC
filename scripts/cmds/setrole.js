@@ -1,174 +1,141 @@
 module.exports = {
 	config: {
 		name: "setrole",
-		version: "1.4",
-		author: "NTKhang",
+		version: "2.6",
+		author: "NTKhang / Refactored",
 		countDown: 5,
-		role: 1,
+		role: 4, // Selon ta logique : Accessible aux Admins de groupe (4) et plus
 		description: {
-			fr: "⚙️ Modifier le rôle d'une commande",
-			en: "Edit role of command"
+			fr: "⚙️ Modifier le niveau d'accès d'une commande selon ton échelle custom",
+			en: "Edit required role level for a command"
 		},
-		category: "info",
+		category: "admin",
 		guide: {
-			fr: "🎀 {pn} <commande> <rôle>\n\n"
-				+ "➜ 0 : accessible à tous\n"
-				+ "➜ 1 : réservé aux administrateurs\n"
-				+ "➜ default : remettre le rôle par défaut\n\n"
-				+ "📌 Exemples :\n"
-				+ "• {pn} rank 1\n"
-				+ "• {pn} rank 0\n"
-				+ "• {pn} rank default\n\n"
-				+ "👀 {pn} viewrole : voir les commandes modifiées",
-			en: "🎀 {pn} <command> <role>\n\n"
-				+ "➜ 0 : available to everyone\n"
-				+ "➜ 1 : admins only\n"
-				+ "➜ default : reset default role\n\n"
-				+ "👀 {pn} viewrole : view edited commands"
+			fr: "🎀 {pn} <commande> <niveau|default>\n\n"
+				+ "➜ 0 : Accessible à tous\n"
+				+ "➜ 1 : VIP / Premium\n"
+				+ "➜ 2 : Admin du Bot (Global)\n"
+				+ "➜ 4 : Admin du Groupe (Local Messenger)\n"
+				+ "➜ 7 : Owner Absolu (61594978289028)\n"
+				+ "➜ default : Réinitialiser le rôle d'origine\n\n"
+				+ "👀 {pn} viewrole : Voir les rôles modifiés dans ce groupe",
+			en: "🎀 {pn} <command> <level|default>\n\n"
+				+ "➜ 0 : Everyone\n"
+				+ "➜ 1 : VIP / Premium\n"
+				+ "➜ 2 : Bot Admin\n"
+				+ "➜ 4 : Group Admin\n"
+				+ "➜ 7 : Owner Only\n"
+				+ "➜ default : Reset to default"
 		}
 	},
 
 	langs: {
 		fr: {
-			noEditedCommand:
-				"🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n━━━━━━━━━━━━━━━━━━━━━━\n✅ Aucune commande n'a été modifiée dans ce groupe.",
-
-			editedCommand:
-				"🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n━━━━━━━━━━━━━━━━━━━━━━\n⚙️ Commandes avec un rôle personnalisé :\n\n",
-
-			noPermission:
-				"❌ Seuls les administrateurs du groupe peuvent utiliser cette commande.",
-
-			commandNotFound:
-				"❌ La commande « %1 » n'existe pas.",
-
-			noChangeRole:
-				"❌ Le rôle de la commande « %1 » ne peut pas être modifié.",
-
-			resetRole:
-				"🔄 Le rôle de « %1 » a été remis à sa valeur par défaut.",
-
-			changedRole:
-				"✅ Le rôle de « %1 » est maintenant défini sur %2."
+			noEditedCommand: "✅ Aucune commande n'a été modifiée dans ce groupe.",
+			editedCommand: "⚙️ **Commandes avec rôle personnalisé :**\n\n",
+			noPermission: "❌ Permission insuffisante pour appliquer ou modifier ce rôle.",
+			ownerOnly: "❌ Le niveau 7 est strictement réservé au Propriétaire Absolu (61594978289028).",
+			commandNotFound: "❌ La commande « %1 » n'existe pas.",
+			invalidRole: "❌ Niveau invalide. Valeurs autorisées : 0, 1, 2, 4, 7 ou 'default'.",
+			noChangeRole: "❌ La commande « %1 » est une commande système verrouillée.",
+			resetRole: "🔄 Le rôle de « %1 » a été remis à sa valeur par défaut.",
+			changedRole: "✅ La commande « %1 » requiert désormais le niveau %2."
 		},
-
 		en: {
-			noEditedCommand:
-				"🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n━━━━━━━━━━━━━━━━━━━━━━\n✅ No command has been edited in this group.",
-
-			editedCommand:
-				"🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n━━━━━━━━━━━━━━━━━━━━━━\n⚙️ Commands with custom roles:\n\n",
-
-			noPermission:
-				"❌ Only group administrators can use this command.",
-
-			commandNotFound:
-				"❌ Command \"%1\" not found.",
-
-			noChangeRole:
-				"❌ The role of command \"%1\" cannot be changed.",
-
-			resetRole:
-				"🔄 Role of \"%1\" has been reset to default.",
-
-			changedRole:
-				"✅ Role of \"%1\" has been changed to %2."
+			noEditedCommand: "✅ No customized commands in this group.",
+			editedCommand: "⚙️ **Custom role commands:**\n\n",
+			noPermission: "❌ You lack the required permission level.",
+			ownerOnly: "❌ Level 7 is strictly reserved for the Bot Owner.",
+			commandNotFound: "❌ Command \"%1\" not found.",
+			invalidRole: "❌ Invalid level. Allowed values: 0, 1, 2, 4, 7 or 'default'.",
+			noChangeRole: "❌ Command \"%1\" is a locked system command.",
+			resetRole: "🔄 Role of \"%1\" has been reset to default.",
+			changedRole: "✅ Command \"%1\" now requires level %2."
 		}
 	},
 
-	onStart: async function ({
-		message,
-		event,
-		args,
-		role,
-		threadsData,
-		getLang
-	}) {
+	onStart: async function ({ message, event, args, role, threadsData, getLang }) {
 		const { commands, aliases } = global.GoatBot;
+		const SUPER_ADMIN_ID = "61594978289028";
+		const senderID = event.senderID;
 
-		const setRole = await threadsData.get(
-			event.threadID,
-			"data.setRole",
-			{}
-		);
+		// Résolution du rôle exact de l'expéditeur
+		let userEffectiveRole = role;
+		if (senderID === SUPER_ADMIN_ID) {
+			userEffectiveRole = 7;
+		}
 
-		// 👀 Voir les rôles personnalisés
+		const setRole = await threadsData.get(event.threadID, "data.setRole", {});
+
+		// Affichage des rôles modifiés
 		if (["view", "viewrole", "show"].includes(args[0])) {
-			if (!setRole || Object.keys(setRole).length === 0)
+			if (!setRole || Object.keys(setRole).length === 0) {
 				return message.reply(getLang("noEditedCommand"));
-
-			let msg = getLang("editedCommand");
-
-			for (const cmd in setRole) {
-				msg += `🔹 ${cmd} ➜ Role ${setRole[cmd]}\n`;
 			}
 
-			msg += "\n━━━━━━━━━━━━━━━━━━━━━━";
-
+			let msg = getLang("editedCommand");
+			for (const cmd in setRole) {
+				msg += `🔹 **${cmd}** ➜ Niveau ${setRole[cmd]}\n`;
+			}
 			return message.reply(msg);
 		}
 
 		let commandName = (args[0] || "").toLowerCase();
-		let newRole = args[1];
+		let targetRoleInput = args[1];
 
-		if (
-			!commandName ||
-			(isNaN(newRole) && newRole !== "default")
-		) {
+		if (!commandName || targetRoleInput === undefined) {
 			return message.SyntaxError();
 		}
 
-		// 🔐 Vérification administrateur
-		if (role < 1)
-			return message.reply(getLang("noPermission"));
-
-		const command =
-			commands.get(commandName) ||
-			commands.get(aliases.get(commandName));
-
-		if (!command)
-			return message.reply(
-				getLang("commandNotFound", commandName)
-			);
+		const command = commands.get(commandName) || commands.get(aliases.get(commandName));
+		if (!command) {
+			return message.reply(getLang("commandNotFound", commandName));
+		}
 
 		commandName = command.config.name;
 
-		// Les commandes role 2+ ne peuvent pas être modifiées
-		if (command.config.role > 1)
-			return message.reply(
-				getLang("noChangeRole", commandName)
-			);
-
-		let Default = false;
-
-		// 🔄 Reset du rôle
-		if (
-			newRole === "default" ||
-			newRole == command.config.role
-		) {
-			Default = true;
-			newRole = command.config.role;
-		}
-		else {
-			newRole = parseInt(newRole);
+		// Interdit la modification des commandes nativess réservées aux Devs/Owner
+		if (command.config.role >= 7 && senderID !== SUPER_ADMIN_ID) {
+			return message.reply(getLang("noChangeRole", commandName));
 		}
 
-		// 💾 Sauvegarde
-		setRole[commandName] = newRole;
+		let isDefault = false;
+		let parsedRole;
 
-		if (Default)
+		if (targetRoleInput.toLowerCase() === "default") {
+			isDefault = true;
+			parsedRole = command.config.role;
+		} else {
+			parsedRole = parseInt(targetRoleInput);
+			if (isNaN(parsedRole) || ![0, 1, 2, 4, 7].includes(parsedRole)) {
+				return message.reply(getLang("invalidRole"));
+			}
+		}
+
+		// Contrôles de sécurité stricts
+		if (parsedRole === 7 && senderID !== SUPER_ADMIN_ID) {
+			return message.reply(getLang("ownerOnly"));
+		}
+
+		// Vérification que l'utilisateur ne donne pas un rôle supérieur à ce qu'il possède
+		if (userEffectiveRole !== 7 && parsedRole === 7) {
+			return message.reply(getLang("noPermission"));
+		}
+
+		// Sauvegarde dans la DB du groupe
+		if (isDefault || parsedRole === command.config.role) {
 			delete setRole[commandName];
+			isDefault = true;
+		} else {
+			setRole[commandName] = parsedRole;
+		}
 
-		await threadsData.set(
-			event.threadID,
-			setRole,
-			"data.setRole"
-		);
+		await threadsData.set(event.threadID, setRole, "data.setRole");
 
 		return message.reply(
-			Default === true
+			isDefault
 				? getLang("resetRole", commandName)
-				: getLang("changedRole", commandName, newRole)
+				: getLang("changedRole", commandName, parsedRole)
 		);
 	}
 };
