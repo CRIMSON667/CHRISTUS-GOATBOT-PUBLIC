@@ -4,7 +4,7 @@ module.exports = {
 		aliases: ["rejoindre"],
 		version: "2.2.0",
 		author: "Brayan Slyde",
-		role: 2,
+		role: 1,
 		countDown: 5,
 		category: "admin",
 		shortDescription: "Gérer les groupes du bot",
