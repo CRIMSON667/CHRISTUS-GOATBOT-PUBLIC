@@ -62,7 +62,7 @@ module.exports = {
     version: "3.6",
     author: "CRIMSON 🪽",
     countDown: 5,
-    role: 2,
+    role: 1,
     description: {
       en: "Gère la whitelist avec compte à rebours (s, m, h, d)"
     },
