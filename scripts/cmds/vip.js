@@ -95,7 +95,7 @@ module.exports = {
 		author: "Azadx69x",
 		editor: "CRIMSON 🪽",
 		countDown: 5,
-		role: 2,
+		role: 1,
 		description: {
 			fr: "💎 Gérer les utilisateurs VIP avec des durées temporaires",
 			en: "Manage VIP users with temporary durations"
