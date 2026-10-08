@@ -9,7 +9,7 @@ module.exports = {
                 version: "3.4",
                 author: "CRIMSON 🖇️🩵🪽",
                 countDown: 5,
-                role: 1,
+                role: 2,
                 description: {
                         fr: "Envoyer une notification avec sélection des groupes",
                         en: "Send notification with group selection"
