@@ -4,7 +4,7 @@ module.exports = {
     version: "1.7.0",
     author: "Brayan",
     aliases: ["prom", "demonte", "demont"],
-    countDown: 3,
+    countDown: 5,
     role: 0,
     shortDescription: {
       fr: "Promouvez ou rétrogradez des administrateurs du groupe"
