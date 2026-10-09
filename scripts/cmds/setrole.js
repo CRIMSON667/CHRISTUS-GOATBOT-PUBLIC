@@ -1,13 +1,13 @@
 module.exports = {
 	config: {
 		name: "setrole",
-		version: "2.6",
+		version: "3.0",
 		author: "NTKhang / Refactored",
 		countDown: 5,
-		role: 4, // Selon ta logique : Accessible aux Admins de groupe (4) et plus
+		role: 4, // Exige d'être au moins Admin du Groupe (4)
 		description: {
-			fr: "⚙️ Modifier le niveau d'accès d'une commande selon ton échelle custom",
-			en: "Edit required role level for a command"
+			fr: "⚙️ Modifier le niveau d'accès d'une commande dans le groupe",
+			en: "Edit required role level for a command in thread"
 		},
 		category: "admin",
 		guide: {
@@ -15,59 +15,65 @@ module.exports = {
 				+ "➜ 0 : Accessible à tous\n"
 				+ "➜ 1 : VIP / Premium\n"
 				+ "➜ 2 : Admin du Bot (Global)\n"
-				+ "➜ 4 : Admin du Groupe (Local Messenger)\n"
-				+ "➜ 7 : Owner Absolu (61594978289028)\n"
-				+ "➜ default : Réinitialiser le rôle d'origine\n\n"
-				+ "👀 {pn} viewrole : Voir les rôles modifiés dans ce groupe",
+				+ "➜ 4 : Admin du Groupe (Messenger)\n"
+				+ "➜ 7 : Owner / Créateur Absolu\n"
+				+ "➜ default : Réinitialiser\n\n"
+				+ "👀 {pn} viewrole : Voir les modifications de rôles dans ce groupe",
 			en: "🎀 {pn} <command> <level|default>\n\n"
 				+ "➜ 0 : Everyone\n"
 				+ "➜ 1 : VIP / Premium\n"
 				+ "➜ 2 : Bot Admin\n"
 				+ "➜ 4 : Group Admin\n"
 				+ "➜ 7 : Owner Only\n"
-				+ "➜ default : Reset to default"
+				+ "➜ default : Reset"
 		}
 	},
 
 	langs: {
 		fr: {
-			noEditedCommand: "✅ Aucune commande n'a été modifiée dans ce groupe.",
-			editedCommand: "⚙️ **Commandes avec rôle personnalisé :**\n\n",
-			noPermission: "❌ Permission insuffisante pour appliquer ou modifier ce rôle.",
-			ownerOnly: "❌ Le niveau 7 est strictement réservé au Propriétaire Absolu (61594978289028).",
+			noEditedCommand: "🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n━━━━━━━━━━━━━━━━━━━━━━\n✅ Aucune commande n'a été modifiée dans ce groupe.",
+			editedCommand: "🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n━━━━━━━━━━━━━━━━━━━━━━\n⚙️ Commandes avec un rôle personnalisé :\n\n",
+			noPermission: "❌ Permission insuffisante. Vous ne pouvez pas attribuer ou modifier un rôle supérieur à vos propres privilèges.",
+			ownerOnly: "❌ Le niveau 7 est strictement réservé au Propriétaire du bot (61594978289028).",
 			commandNotFound: "❌ La commande « %1 » n'existe pas.",
-			invalidRole: "❌ Niveau invalide. Valeurs autorisées : 0, 1, 2, 4, 7 ou 'default'.",
+			invalidRole: "❌ Niveau invalide. Valeurs acceptées : 0, 1, 2, 4, 7 ou 'default'.",
 			noChangeRole: "❌ La commande « %1 » est une commande système verrouillée.",
-			resetRole: "🔄 Le rôle de « %1 » a été remis à sa valeur par défaut.",
-			changedRole: "✅ La commande « %1 » requiert désormais le niveau %2."
+			resetRole: "🔄 Le rôle de la commande « %1 » a été réinitialisé à sa valeur par défaut.",
+			changedRole: "✅ Le rôle de la commande « %1 » est désormais fixé au niveau %2."
 		},
 		en: {
-			noEditedCommand: "✅ No customized commands in this group.",
-			editedCommand: "⚙️ **Custom role commands:**\n\n",
-			noPermission: "❌ You lack the required permission level.",
+			noEditedCommand: "🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n━━━━━━━━━━━━━━━━━━━━━━\n✅ No command has been edited in this group.",
+			editedCommand: "🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n━━━━━━━━━━━━━━━━━━━━━━\n⚙️ Commands with custom roles:\n\n",
+			noPermission: "❌ Insufficient permission.",
 			ownerOnly: "❌ Level 7 is strictly reserved for the Bot Owner.",
 			commandNotFound: "❌ Command \"%1\" not found.",
 			invalidRole: "❌ Invalid level. Allowed values: 0, 1, 2, 4, 7 or 'default'.",
-			noChangeRole: "❌ Command \"%1\" is a locked system command.",
+			noChangeRole: "❌ Command \"%1\" is locked and cannot be changed.",
 			resetRole: "🔄 Role of \"%1\" has been reset to default.",
-			changedRole: "✅ Command \"%1\" now requires level %2."
+			changedRole: "✅ Role of \"%1\" has been changed to level %2."
 		}
 	},
 
 	onStart: async function ({ message, event, args, role, threadsData, getLang }) {
-		const { commands, aliases } = global.GoatBot;
+		const { commands, aliases, config } = global.GoatBot;
+		const senderID = String(event.senderID);
 		const SUPER_ADMIN_ID = "61594978289028";
-		const senderID = event.senderID;
 
-		// Résolution du rôle exact de l'expéditeur
-		let userEffectiveRole = role;
-		if (senderID === SUPER_ADMIN_ID) {
+		// Calcul dynamique du niveau réel de l'exécutant d'après config.json
+		let userEffectiveRole = role; // Valeur transmise par le noyau GoatBot
+
+		const isCreator = (config.creator || []).includes(senderID) || senderID === SUPER_ADMIN_ID;
+		const isBotAdmin = (config.adminBot || []).includes(senderID) || (config.developer || []).includes(senderID);
+
+		if (isCreator) {
 			userEffectiveRole = 7;
+		} else if (isBotAdmin && userEffectiveRole < 2) {
+			userEffectiveRole = 2;
 		}
 
 		const setRole = await threadsData.get(event.threadID, "data.setRole", {});
 
-		// Affichage des rôles modifiés
+		// Commande de consultation
 		if (["view", "viewrole", "show"].includes(args[0])) {
 			if (!setRole || Object.keys(setRole).length === 0) {
 				return message.reply(getLang("noEditedCommand"));
@@ -77,6 +83,7 @@ module.exports = {
 			for (const cmd in setRole) {
 				msg += `🔹 **${cmd}** ➜ Niveau ${setRole[cmd]}\n`;
 			}
+			msg += "\n━━━━━━━━━━━━━━━━━━━━━━";
 			return message.reply(msg);
 		}
 
@@ -94,8 +101,8 @@ module.exports = {
 
 		commandName = command.config.name;
 
-		// Interdit la modification des commandes nativess réservées aux Devs/Owner
-		if (command.config.role >= 7 && senderID !== SUPER_ADMIN_ID) {
+		// Bloquer la modification si la commande exige nativement un niveau supérieur ou égal à 7
+		if (command.config.role >= 7 && !isCreator) {
 			return message.reply(getLang("noChangeRole", commandName));
 		}
 
@@ -112,17 +119,16 @@ module.exports = {
 			}
 		}
 
-		// Contrôles de sécurité stricts
-		if (parsedRole === 7 && senderID !== SUPER_ADMIN_ID) {
+		// Interdictions de privilèges
+		if (parsedRole === 7 && !isCreator) {
 			return message.reply(getLang("ownerOnly"));
 		}
 
-		// Vérification que l'utilisateur ne donne pas un rôle supérieur à ce qu'il possède
-		if (userEffectiveRole !== 7 && parsedRole === 7) {
+		if (parsedRole > userEffectiveRole && !isCreator) {
 			return message.reply(getLang("noPermission"));
 		}
 
-		// Sauvegarde dans la DB du groupe
+		// Persistence dans la base MongoDB/JSON
 		if (isDefault || parsedRole === command.config.role) {
 			delete setRole[commandName];
 			isDefault = true;
