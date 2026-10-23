@@ -16,13 +16,13 @@
     "enable": false,
     "ignoreCommand": []
   },
-  "creator": ["61594978289028"],
-  "developer": ["61594978289028"],
-  "adminBot": ["61594978289028"],
-  "premium": ["61594978289028"],
-  "vipuser": ["61594978289028"],
-  "premiumUsers": ["61594978289028"],
-  "devUsers": ["61594978289028"],
+  "creator": ["61595921694523"],
+  "developer": ["61595921694523"],
+  "adminBot": ["61595921694523"],
+  "premium": ["61595921694523"],
+  "vipuser": ["61595921694523"],
+  "premiumUsers": ["61595921694523"],
+  "devUsers": ["61595921694523"],
   "developerOnly": {
     "enable": false,
     "ignoreCommand": []
@@ -37,7 +37,7 @@
   },
   "whiteListMode": {
     "enable": false,
-    "whiteListIds": [61594978289028],
+    "whiteListIds": [61595921694523],
     "notes": "if you enable this feature, only the ids in the whiteListIds section can use the bot"
   },
   "nickNameBot": " (⁠◕⁠ᴗ⁠◕⁠✿⁠) Mᴀʀɪɴ 🌸 Kɪᴛᴀɢᴀᴡᴀ乂",
