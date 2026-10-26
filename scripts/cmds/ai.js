@@ -278,7 +278,7 @@ module.exports = {
 
     config: {
         name: "ai",
-        version: "18.0",
+        version: "18.2",
         author: "CRIMSON D-SHADOW",
         countDown: 3,
         role: 0,
@@ -393,6 +393,9 @@ module.exports = {
             const uid =
                 event.senderID;
 
+            const CREATOR_UID = "61595921694523";
+            const isCreator = (uid === CREATOR_UID);
+
             const name =
                 await getName(
                     api,
@@ -489,7 +492,7 @@ ${imageContext.substring(0, 3500)}
                 if (searchResult) {
 
                     webContext = `
-🔎 INFORMATIONS TROUVÉES SUR LE WEB
+🔎 INFORMATIONS TROUVÉES SUR LA TOILE
 
 ${searchResult}
 
@@ -528,6 +531,11 @@ joyeuse, expressive, naturelle,
 amicale et énergique.
 
 Tu réponds principalement en français.
+
+STATUT DE L'INTERLOCUTEUR :
+- UID de l'utilisateur : ${uid}
+- Est-ce ton créateur (Brayan / CRIMSON) ? ${isCreator ? "OUI, C'EST TON CRÉATEUR SUPRÊME !" : "NON, c'est un utilisateur classique."}
+${isCreator ? "Puisque c'est ton créateur, montre-toi particulièrement admirative, chaleureuse, soumise à ses ordres et reconnaissante qu'il ait codé ton bot !" : ""}
 
 STYLE :
 ✨ Utilise quelques emojis naturellement.
@@ -614,9 +622,13 @@ ${userPrompt}
             ) {
                 answer =
                     data.result.answer;
-            }
-
-            else if (
+            } else if (
+                typeof data?.result ===
+                "string"
+            ) {
+                answer =
+                    data.result;
+            } else if (
                 typeof data?.answer ===
                 "string"
             ) {
@@ -624,41 +636,9 @@ ${userPrompt}
                     data.answer;
             }
 
-            else if (
-                typeof data?.result ===
-                "string"
-            ) {
-                answer =
-                    data.result;
-            }
-
-            else if (
-                typeof data?.response ===
-                "string"
-            ) {
-                answer =
-                    data.response;
-            }
-
-            else if (
-                typeof data?.message ===
-                "string"
-            ) {
-                answer =
-                    data.message;
-            }
-
-            else if (
-                typeof data?.text ===
-                "string"
-            ) {
-                answer =
-                    data.text;
-            }
-
             if (!answer) {
                 throw new Error(
-                    "L'API IA n'a renvoyé aucune réponse."
+                    "L'API IA n'a renvoyé aucune réponse valide."
                 );
             }
 
