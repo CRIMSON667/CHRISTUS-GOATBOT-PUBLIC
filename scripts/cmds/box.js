@@ -19,8 +19,8 @@ function marin(text, command = "BOX") {
 
 module.exports = {
 	config: {
-		name: "box",
-		aliases: ["thread", "group", "groupe"],
+		name: "dox",
+		aliases: ["young", "group", "groupe"],
 		version: "5.0.0",
 		author: "CRIMSON",
 		role: 0,
@@ -85,7 +85,7 @@ module.exports = {
 🔎 search <nom>
 
 💡 Exemple :
-box search Brayan`,
+dox search Brayan`,
 
 			notAdmin:
 				"💢 Désolé %1, seuls les administrateurs du groupe peuvent utiliser cette commande.",
