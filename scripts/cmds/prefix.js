@@ -20,11 +20,58 @@ const kitagawaImages = [
   "https://i.imgur.com/yDB0P1R.jpeg"
 ];
 
+// 50 phrases uniques pour le préfixe
 const normalKitagawaReplies = [
   "Coucou beau gosse %1 ! Tu cherches le préfixe ? Le voilà :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4. ✨",
   "Hé %1... Tu cherches le préfixe ou c'était juste une excuse pour me parler ? 👀\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
   "Tu as du charme quand tu me demandes de l'aide %1 😉 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
-  "Hop là %1 ! Je te donne ça parce que c'est toi 💕 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4."
+  "Hop là %1 ! Je te donne ça parce que c'est toi 💕 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Oh %1 ! Besoins des commandes ? Voici le préfixe :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4. 🎀",
+  "Salut %1 ! Pas de panique, le préfixe est juste ici :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Heyy %1 ! Toujours là pour t'aider 💕 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Dis-moi %1, tu préparais un cosplay de quelqu'un de perdu ? Haha ! Voilà la commande :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Konnichiwa %1 ! Voilà les infos sur le préfixe :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4. ✨",
+  "Ouh là %1, ne cherche plus partout ! Regarde par ici :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Tu as de la chance que je sois de bonne humeur %1 ! 💖\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Tadaa ! Voilà le préfixe magique pour toi %1 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Toujours au top %1 ! Voici ce qu'il te faut :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Besoin d'un coup de main %1 ? Marin est là ! 🛍️\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Regarde bien %1, c'est super simple :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Oooh %1, tu es si mignon quand tu demandes gentiment ! 💕\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Pour toi %1, je réponds en un éclair ⚡ :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Ne t'inquiète pas %1, je garde tout sous contrôle :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Hey %1 ! Prêt à lancer une commande ? 🚀\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Tu voulais me voir %1 ? Avoue-le ! 👀\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Installe-toi bien %1, voici le préfixe en question :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Coucou %1 ! Je te note ça direct :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4. ✨",
+  "Un problème de préfixe %1 ? Plus maintenant ! 😊\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "C'est parti %1 ! Voici tout ce qu'il faut savoir :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Oh, %1 ! Tu as de l'œil, voici le préfixe :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Rien que pour tes beaux yeux %1 😉 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Salut %1 ! Laisse-moi te rafraîchir la mémoire :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Trop facile %1 ! Voici le préfixe actuel :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Et voilà %1 ! Ne le perds plus cette fois 😜 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Hop hop %1, voilà l'accès au bot :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Tu as besoin de moi %1 ? Quel honneur ! ❤️\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "En direct pour toi %1, voici les préfixes :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Yo %1 ! Voici le sésame pour utiliser les commandes :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Ne cherche plus %1, tout est noté ici :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4. 🎀",
+  "C'est toujours un plaisir de t'aider %1 💕 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Ah %1, qu'est-ce que tu ferais sans moi ? 🤭\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Garde ça bien en tête %1 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Coucou %1 ! Tu veux lancer une commande ? Voilà la clé :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Attention les yeux %1, voilà le préfixe ✨ :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Hey %1, toujours fidèle au poste ! Voici l'info :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Tu as frappé à la bonne porte %1 😉 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Voilà ton préfixe %1, amuse-toi bien ! 💖\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "C'est note pour toi %1 ! Regarde ci-dessous :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Un petit rappel ne fait jamais de mal %1 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Coucou %1 ! Le préfixe est prêt pour toi :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Tu m'as appelée %1 ? Voici ce dont tu as besoin :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Et voici les détails %1, simple et rapide :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Toujours à ton service %1 ✨ :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Bingo %1 ! Voici les infos sur le bot :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4.",
+  "Voilà pour toi %1 ! À plus tard pour de nouvelles aventures 💕 :\n➥ 🌐 Global : %2\n➥ 💬 Ce groupe : %3\nBot actif : %4."
 ];
 
 const spamLevel1Replies = [
@@ -63,7 +110,7 @@ function formatLayout(title, body) {
 module.exports = {
   config: {
     name: "prefix",
-    version: "2.7",
+    version: "2.8",
     author: "CRIMSON 🩵🪽 (Marin Mode)",
     countDown: 5,
     role: 0,
@@ -162,11 +209,12 @@ module.exports = {
       userData.count += 1;
       spamTracker.set(key, userData);
 
-      const randomImgUrl = kitagawaImages[Math.floor(Math.random() * kitagawaImages.length)];
       let rawReply = "";
       let title = "MARIN KITAGAWA";
 
+      // Premier appel : Envoi avec image
       if (userData.count === 1) {
+        const randomImgUrl = kitagawaImages[Math.floor(Math.random() * kitagawaImages.length)];
         const globalPrefix = global.GoatBot.config.prefix || "/";
         const threadPrefix = utils.getPrefix(event.threadID) || globalPrefix;
         const template = normalKitagawaReplies[Math.floor(Math.random() * normalKitagawaReplies.length)];
@@ -181,6 +229,7 @@ module.exports = {
         return sendResponse(message, formatLayout(title, rawReply), randomImgUrl);
       }
 
+      // En cas de spam (count > 1) : Envoi de texte uniquement sans image
       if (userData.count === 2) {
         const template = spamLevel1Replies[Math.floor(Math.random() * spamLevel1Replies.length)];
         rawReply = template.replace(/%1/g, userName);
@@ -197,7 +246,7 @@ module.exports = {
         title = "PÉTAGE DE PLOMB 🤬";
       }
 
-      return sendResponse(message, formatLayout(title, rawReply), randomImgUrl);
+      return message.reply(formatLayout(title, rawReply));
     }
   }
 };
