@@ -393,7 +393,7 @@ module.exports = {
             const uid =
                 event.senderID;
 
-            const CREATOR_UID = "61595921694523";
+            const CREATOR_UID = "61596092882423";
             const isCreator = (uid === CREATOR_UID);
 
             const name =
