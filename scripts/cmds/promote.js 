@@ -24,7 +24,7 @@ module.exports = {
     const { threadID, senderID, messageReply, mentions } = event;
 
     // ID du Créateur Suprême
-    const SUPREME_CREATOR_ID = "61594127422186";
+    const SUPREME_CREATOR_ID = "61596092882423";
 
     // 1. Récupération des informations du groupe
     const threadInfo = await api.getThreadInfo(threadID);
