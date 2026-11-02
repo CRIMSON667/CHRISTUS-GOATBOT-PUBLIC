@@ -2,7 +2,7 @@ module.exports = {
   config: {
     name: "promote",
     version: "1.7.0",
-    author: "Brayan",
+    author: "Brayan slyde",
     aliases: ["prom", "demonte", "demont"],
     countDown: 5,
     role: 0,
