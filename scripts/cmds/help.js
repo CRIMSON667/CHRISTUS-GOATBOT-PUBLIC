@@ -1,239 +1,249 @@
-const { getPrefix } = global.utils;
-const { commands, aliases } = global.GoatBot;
+const os = require("os");
+const process = require("process");
+const util = require("util");
 
-let fonts;
-try {
-	fonts = require('../../func/font.js');
-} catch (error) {
-	fonts = {
-		bold: (t) => t,
-		sansSerif: (t) => t,
-		monospace: (t) => t,
-		fancy: (t) => t
-	};
+const MARIN_HELP_QUOTES = [
+  "Waku waku ! Trouve la commande parfaite pour tes sessions, senpai ! ✨",
+  "Dis donc, notre bot a un catalogue aussi incroyable que mes cosplays de Shizuku-tan ! 💖",
+  "Mission exploration ! Navigue à travers toutes nos fonctionnalités avec le sourire ! 🌸",
+  "C'est trop génial ! Regarde un peu toutes ces options de folie prêtes à l'emploi ! 🎀",
+  "Kyaa ! Tout est super bien rangé et ultra rapide, on adore ! ✨",
+  "Besoin d'un coup de main ? Je suis là pour guider chaque étape avec style ! 🌟",
+  "Un catalogue digne d'un grand salon de manga ! Choisis ta prochaine commande ! 👗",
+  "L'organisation, c'est la clé du succès, exactement comme pour les essayages ! 🎨",
+  "Chaque commande a son petit secret, amuse-toi bien à les découvrir toutes ! 💫",
+  "Prêt à booster ton serveur avec nos meilleures fonctionnalités, senpai ? 🚀"
+];
+
+const GOATBOT_FULL_COMMANDS_CATALOGUE = {
+  utilitaires: {
+    name: "Utilitaires & Système",
+    icon: "🛠️",
+    description: "Outils de diagnostic, latence, informations et configuration.",
+    commands: [
+      { name: "ping", desc: "Vérifie la latence et l'état complet du système." },
+      { name: "help", desc: "Affiche le menu d'aide interactif et le catalogue." },
+      { name: "uptime", desc: "Affiche le temps de fonctionnement du bot." },
+      { name: "info", desc: "Donne des informations détaillées sur le bot." },
+      { name: "prefix", desc: "Affiche ou modifie le préfixe du bot sur le groupe." }
+    ]
+  },
+  administration: {
+    name: "Administration & Modération",
+    icon: "🛡️",
+    description: "Gestion des membres, des rôles et sécurité des groupes.",
+    commands: [
+      { name: "ban", desc: "Bannit un membre indésirable du groupe Messenger." },
+      { name: "kick", desc: "Expulse un utilisateur du groupe." },
+      { name: "admin", desc: "Gère la liste des administrateurs du bot." },
+      { name: "setname", desc: "Modifie le pseudonyme d'un membre dans le groupe." },
+      { name: "antilink", desc: "Active ou désactive la protection anti-liens." }
+    ]
+  },
+  economie: {
+    name: "Économie & Jeux",
+    icon: "💰",
+    description: "Système financier, portefeuille, gains et mini-jeux d'argent.",
+    commands: [
+      { name: "balance", desc: "Consulte ton solde et ton portefeuille actuel." },
+      { name: "daily", desc: "Récupère ta récompense financière quotidienne." },
+      { name: "work", desc: "Travaille pour gagner de l'argent virtuel." },
+      { name: "pay", desc: "Transfère de l'argent à un autre utilisateur." },
+      { name: "slot", desc: "Joue à la machine à sous pour tenter de multiplier tes gains." }
+    ]
+  },
+  anime: {
+    name: "Anime & Médias",
+    icon: "🌸",
+    description: "Exploration d'animes, mangas, waifus et personnages cultes.",
+    commands: [
+      { name: "waifu", desc: "Recherche et affiche une image de waifu aléatoire." },
+      { name: "cosplay", desc: "Découvre de superbes photos de cosplay." },
+      { name: "neko", desc: "Affiche une image de fille chat mignonne." },
+      { name: "anime", desc: "Recherche des informations sur un anime spécifique." }
+    ]
+  },
+  divertissement: {
+    name: "Divertissement & Fun",
+    icon: "🎮",
+    description: "Mini-jeux, interactions sociales et amusements entre membres.",
+    commands: [
+      { name: "roll", desc: "Lance un dé aléatoire." },
+      { name: "8ball", desc: "Répond à tes questions mystiques." },
+      { name: "kiss", desc: "Fait un bisou virtuel à un membre." },
+      { name: "hug", desc: "Donne un câlin chaleureux à quelqu'un." }
+    ]
+  },
+  ia: {
+    name: "Intelligence Artificielle",
+    icon: "🧠",
+    description: "Discussions conversationnelles et génération de contenu intelligent.",
+    commands: [
+      { name: "ai", desc: "Discute avec l'intelligence artificielle principale." },
+      { name: "gpt", desc: "Pose des questions complexes à l'assistant virtuel." },
+      { name: "marin", desc: "Active ou discute avec le mode spécial Marin Kitagawa." },
+      { name: "imagine", desc: "Génère des images à partir d'une description textuelle." }
+    ]
+  },
+  musique: {
+    name: "Musique & Multimédia",
+    icon: "🎵",
+    description: "Recherche et lecture de flux audio et vidéos.
+    commands: [
+      { name: "play", desc: "Joue une musique ou une vidéo audio." },
+      { name: "song", desc: "Télécharge une piste audio depuis YouTube." },
+      { name: "lyrics", desc: "Recherche les paroles d'une chanson." }
+    ]
+  }
+};
+
+function logHelpEvent(level, message) {
+    const timestamp = new Date().toISOString();
+    const prefix = `[GOATBOT-HELP-ULTIMATE] [${timestamp}] [${level}]`;
+    if (level === 'ERROR') {
+        console.error(`${prefix} ${message}`);
+    } else {
+        console.log(`${prefix} ${message}`);
+    }
 }
 
-function toTitleCase(str) {
-	if (!str) return '';
-	return str.replace(/\w\S*/g, (txt) =>
-		txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-	);
+function sanitizeText(input) {
+    if (typeof input !== 'string') return '';
+    return input.trim().replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+}
+
+function getRandomQuote() {
+    const index = Math.floor(Math.random() * MARIN_HELP_QUOTES.length);
+    return MARIN_HELP_QUOTES[index] || MARIN_HELP_QUOTES[0];
 }
 
 module.exports = {
-	config: {
-		name: "help",
-		aliases: [],
-		version: "3.1.1",
-		author: "Christus",
-		countDown: 5,
-		role: 0,
-		description: {
-			fr: "🧰 Affiche la liste des commandes disponibles et leurs détails"
-		},
-		category: "info",
-		guide: {
-			fr: "{pn} : menu principal\n{pn} <commande> : infos sur une commande\n{pn} basics : commandes de base\n{pn} search <mot> : rechercher une commande"
-		}
-	},
+  config: {
+    name: "help",
+    aliases: ["h", "aide", "marinhelp", "commandes"],
+    version: "3.0.0",
+    author: "Delfa Frost",
+    countDown: 5,
+    role: 0,
+    description: {
+      fr: "Affiche le catalogue complet et interactif de toutes les commandes avec le style de Marin Kitagawa 🎀"
+    },
+    category: "utilitaires",
+    guide: {
+      fr: "{pn} [nom_de_commande ou catégorie]"
+    }
+  },
 
-	onStart: async function ({ message, args, event, role }) {
-		const prefix = getPrefix(event.threadID);
-		const arg = args[0]?.toLowerCase();
+  onStart: async function ({ message, event, args }) {
+    let startTime = 0;
+    try {
+      startTime = Date.now();
+      logHelpEvent('INFO', `Exécution de la commande help demandée par l'utilisateur ID: ${event.senderID || 'Inconnu'}`);
 
-		const allCommands = [];
-		const seen = new Set();
+      await message.reaction("⏳", event.messageID);
 
-		for (const [name, cmd] of commands) {
-			if (cmd.config.role > role) continue;
+      const query = args && args.length > 0 ? sanitizeText(args[0]).toLowerCase() : "";
+      const selectedQuote = getRandomQuote();
 
-			if (!seen.has(name)) {
-				seen.add(name);
-				allCommands.push(cmd);
-			}
-		}
+      let responseText = "";
 
-		allCommands.sort((a, b) =>
-			a.config.name.localeCompare(b.config.name)
-		);
+      if (query) {
+        if (GOATBOT_FULL_COMMANDS_CATALOGUE[query]) {
+          const catData = GOATBOT_FULL_COMMANDS_CATALOGUE[query];
+          let cmdsListFormatted = "";
+          catData.commands.forEach((cmd, idx) => {
+            cmdsListFormatted += `🔹 **${cmd.name}** : \`${cmd.desc}\`\n`;
+          });
 
-		if (!arg) {
-			const categorized = {};
+          responseText = 
+            `🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🌸 **CATÉGORIE : ${catData.name.toUpperCase()}**\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `${catData.icon} **Description :** ${catData.description}\n\n` +
+            `📋 **Liste des commandes :**\n\n` +
+            cmdsListFormatted + `\n` +
+            `💡 *Tape \`help [nom_commande]\` pour plus de détails !*\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `💬 *" ${selectedQuote} "*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━`;
+        } else {
+          let foundCmd = null;
+          let foundCategory = "";
 
-			for (const cmd of allCommands) {
-				const cat = cmd.config.category || "other";
+          for (const [catKey, catObj] of Object.entries(GOATBOT_FULL_COMMANDS_CATALOGUE)) {
+            const match = catObj.commands.find(c => c.name.toLowerCase() === query);
+            if (match) {
+              foundCmd = match;
+              foundCategory = catObj.name;
+              break;
+            }
+          }
 
-				if (!categorized[cat])
-					categorized[cat] = [];
+          if (foundCmd) {
+            responseText = 
+              `🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `🌸 **FICHE DE COMMANDE**\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📌 **Nom :** \`${foundCmd.name}\`\n` +
+              `📂 **Catégorie :** \`${foundCategory}\`\n\n` +
+              `📖 **Description :**\n> ${foundCmd.desc}\n\n` +
+              `💡 **Guide d'utilisation :**\n> \`{pn} ${foundCmd.name}\`\n\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `💬 *" ${selectedQuote} "*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━`;
+          } else {
+            responseText = 
+              `🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `❌ **COMMANDE INTROUVABLE**\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `Oups senpai ! Je n'ai trouvé aucune commande ou catégorie nommée \`${query}\` dans mon catalogue !\n` +
+              `Tape \`help\` tout court pour voir la liste complète des catégories disponibles ! ✨\n\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `💬 *" ${selectedQuote} "*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━`;
+          }
+        }
+      } else {
+        let categoriesDisplay = "";
+        let totalCommandsCount = 0;
 
-				categorized[cat].push(cmd.config.name);
-			}
+        for (const [catKey, catObj] of Object.entries(GOATBOT_FULL_COMMANDS_CATALOGUE)) {
+          totalCommandsCount += catObj.commands.length;
+          categoriesDisplay += `${catObj.icon} **${catObj.name}** (\`${catObj.commands.length}\` cmds)\n   └ Clé : \`${catKey}\` (Tape \`help ${catKey}\`)\n\n`;
+        }
 
-			const sortedCats = Object.keys(categorized).sort();
+        responseText = 
+          `🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `🌸 **CENTRE DE COMMANDES & AIDE**\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `✨ Bienvenue dans mon espace de navigation, senpai !\n` +
+          `Total de commandes répertoriées : \`${totalCommandsCount}\`\n\n` +
+          `📂 **CATÉGORIES DISPONIBLES :**\n\n` +
+          categoriesDisplay +
+          `💡 **Astuce :** Tape \`help [nom_catégorie]\` ou \`help [nom_commande]\` pour explorer en détail !\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `💬 *" ${selectedQuote} "*\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━`;
+      }
 
-			let msg =
-				`${fonts.bold("🔍 Available Commands")} 🧰 (${allCommands.length})\n\n`;
+      await message.reaction("✅", event.messageID);
+      logHelpEvent('INFO', `Menu d'aide complet généré avec succès en ${Date.now() - startTime}ms`);
 
-			for (const cat of sortedCats) {
-				msg += `${fonts.bold(toTitleCase(cat))} (${categorized[cat].length})\n`;
+      return message.reply(responseText);
 
-				const cmds = categorized[cat].sort();
+    } catch (err) {
+      logHelpEvent('ERROR', `Erreur critique dans la commande help : ${err.message}`);
+      console.error(err);
 
-				for (let i = 0; i < cmds.length; i += 3) {
-					const line = cmds
-						.slice(i, i + 3)
-						.map(c => `🍂 ${fonts.sansSerif(c)}`)
-						.join("   ");
+      try {
+        await message.reaction("❌", event.messageID);
+      } catch (e) {}
 
-					msg += line + "\n";
-				}
-
-				msg += "\n";
-			}
-
-			msg += `\n${fonts.bold("➜ Command details:")} ${prefix}help <commande>\n`;
-			msg += `${fonts.bold("➜ Basics:")} ${prefix}help basics\n`;
-			msg += `${fonts.bold("➜ Search:")} ${prefix}help search <mot>\n`;
-			msg += `${fonts.bold("乂 Developed by ヾ. ටිeth ぐさ")} 🧡🪽`;
-
-			return message.reply(msg);
-		}
-
-		if (arg === "basics") {
-			const basicCmdList = [
-				"register", "items", "gift", "bal", "bank", "active", "streak",
-				"vault", "bag", "rank", "ratings", "report", "trade", "uid",
-				"pet", "rosashop", "garden", "arena", "mtls"
-			];
-
-			const validCommands = [];
-
-			for (const cmdName of basicCmdList) {
-				const cmd = commands.get(cmdName);
-
-				if (cmd && cmd.config.role <= role)
-					validCommands.push(cmd);
-			}
-
-			if (validCommands.length === 0) {
-				return message.reply(
-					fonts.bold("❌ No basic commands available for your role.")
-				);
-			}
-
-			let msg = `${fonts.bold("🌺 Basic Commands")}\n\n`;
-
-			for (const cmd of validCommands) {
-				const cfg = cmd.config;
-				const desc = cfg.description?.fr || "No description";
-
-				msg += `📁 ${prefix}${cfg.name} ${fonts.bold("➜")} ${desc}\n`;
-			}
-
-			msg += `\n${fonts.bold("➜ Try to Explore more commands!")}\n`;
-			msg += `${fonts.bold("➜ View all:")} ${prefix}help all\n`;
-			msg += `${fonts.bold("➜ Developed by ヾ. ටිeth ぐさ")} 🧡🪽`;
-
-			return message.reply(msg);
-		}
-
-		if (arg === "search" || arg === "find") {
-			const searchStr = args[1];
-
-			if (!searchStr) {
-				return message.reply(
-					`🔎 Search Result a command by putting a search keyword as argument.\n\n${fonts.bold("EXAMPLE:")} ${prefix}help search shop`
-				);
-			}
-
-			const results = [];
-			const searchLower = searchStr.toLowerCase();
-
-			for (const [name, cmd] of commands) {
-				if (cmd.config.role > role) continue;
-
-				const cfg = cmd.config;
-
-				const searchableText =
-					`${cfg.name} ${cfg.category || ""} ${(cfg.aliases || []).join(" ")} ${cfg.description?.fr || ""}`
-						.toLowerCase();
-
-				if (searchableText.includes(searchLower))
-					results.push(cmd);
-			}
-
-			if (results.length === 0) {
-				return message.reply(`🔎 **Search Results** (0)\n❓ No Results.`);
-			}
-
-			const topResults = results.slice(0, 5);
-
-			let msg =
-				`${fonts.bold(`🔎 Search Results (${topResults.length})`)}\n\n`;
-
-			for (const cmd of topResults) {
-				const cfg = cmd.config;
-
-				const aliasesList =
-					cfg.aliases && cfg.aliases.length > 0
-						? `\nAliases: ${cfg.aliases.join(", ")}`
-						: "";
-
-				msg += `📁 ${prefix}${fonts.bold(cfg.name)}${aliasesList}\n`;
-				msg += `${fonts.bold("➜")} ${cfg.description?.fr || "No Description"}\n\n`;
-			}
-
-			msg += `${fonts.bold("➜ Developed by ヾ. ටිeth ぐさ")} 🧡🪽`;
-
-			return message.reply(msg);
-		}
-
-		const cmdName = args[0];
-
-		let cmd = commands.get(cmdName);
-
-		if (!cmd) {
-			const alias = aliases.get(cmdName);
-
-			if (alias)
-				cmd = commands.get(alias);
-		}
-
-		if (!cmd) {
-			return message.reply(
-				fonts.bold(`❌ Command "${cmdName}" does not exist`)
-			);
-		}
-
-		const cfg = cmd.config;
-
-		let usage = cfg.guide?.fr || "No guide available";
-
-		usage = usage
-			.replace(/{p}/g, prefix)
-			.replace(/{n}/g, cfg.name);
-
-		const roleText =
-			cfg.role == 0
-				? "All users"
-				: cfg.role == 1
-					? "Group admins"
-					: cfg.role == 2
-						? "Bot admin"
-						: "Unknown";
-
-		const detail = `${fonts.bold(`╭─── 🌸 ${toTitleCase(cfg.name)} ───`)}
-
-│ 乂 Name: ${fonts.sansSerif(cfg.name)}
-│ ➤ Author: ${cfg.author || "Unknown"}
-│ ➤ Description: ${cfg.description?.fr || "None"}
-│ ➤ Usage: ${fonts.monospace(usage)}
-│ ➤ Category: ${cfg.category || "other"}
-│ ➤ Cooldown: ${cfg.countDown || 1}s
-│ ➤ Role: ${roleText}
-│ ➤ Aliases: ${cfg.aliases?.length ? cfg.aliases.join(", ") : "None"}
-${fonts.bold("╰────────────────")}`;
-
-		return message.reply(detail);
-	}
+      return message.reply(`❌ Oups senpai ! Une erreur est survenue lors de l'affichage du menu d'aide : \`${err.message}\``);
+    }
+  }
 };
