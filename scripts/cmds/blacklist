@@ -1,0 +1,512 @@
+const FRAME = "🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n━━━━━━━━━━━━━━━━━━━━━━";
+
+/* ───── Anti-spam : réglages (modifie ces valeurs si tu veux) ───── */
+const SPAM_LIMIT = 4;            // 4 commandes envoyées...
+const SPAM_WINDOW = 6000;        // ...en 6 secondes = 1 infraction
+const MAX_OFFENSES = 3;          // 3 infractions = expulsion
+const OFFENSE_TTL = 30 * 60000;  // les infractions sont oubliées après 30 minutes
+const hits = new Map();          // "groupe:utilisateur" -> heures des dernières commandes
+const offenses = new Map();      // "groupe:utilisateur" -> { count, last }
+
+// Les fonctions de l'API fca fonctionnent par callback : on les transforme en promesses
+function getThreadInfo(api, threadID) {
+  return new Promise((resolve, reject) =>
+    api.getThreadInfo(threadID, (err, data) => (err ? reject(err) : resolve(data)))
+  );
+}
+function removeUser(api, uid, threadID) {
+  return new Promise((resolve, reject) =>
+    api.removeUserFromGroup(uid, threadID, err => (err ? reject(err) : resolve()))
+  );
+}
+
+function getPrefix(threadID) {
+  try {
+    return global.utils.getPrefix(threadID);
+  } catch (_) {
+    return (global.GoatBot && global.GoatBot.config && global.GoatBot.config.prefix) || "";
+  }
+}
+
+function getProtectedIDs() {
+  const cfg = (global.GoatBot && global.GoatBot.config) || {};
+  return [...(cfg.adminBot || []), ...(cfg.devUsers || [])].map(String);
+}
+
+// L'anti-spam est actif par défaut ; `blackliste antispam off` le coupe dans un groupe
+async function antispamEnabled(threadsData, threadID) {
+  try {
+    const v = await threadsData.get(threadID, "data.antispamBL");
+    return v !== false;
+  } catch (_) {
+    return true;
+  }
+}
+
+function naruto(title, body) {
+  return `${FRAME}\n✨ ${title} ✨\n${body}`;
+}
+
+function now() {
+  return new Date().toLocaleString("fr-FR", { timeZone: "Africa/Abidjan" });
+}
+
+/* ───── Gestion des durées (s, m, h, d) ───── */
+const TIME_UNITS = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
+
+function parseDuration(tokens) {
+  let totalMs = 0;
+  const rest = [];
+  for (const tok of tokens) {
+    if (/^(?:\d+[smhd])+$/i.test(tok)) {
+      for (const m of tok.matchAll(/(\d+)([smhd])/gi)) {
+        totalMs += Number(m[1]) * TIME_UNITS[m[2].toLowerCase()];
+      }
+    } else {
+      rest.push(tok);
+    }
+  }
+  return { ms: totalMs > 0 ? totalMs : null, rest };
+}
+
+function formatDuration(ms) {
+  if (!ms || ms <= 0) return "Permanent";
+  let rem = Math.ceil(ms / 1000);
+  const d = Math.floor(rem / 86400); rem %= 86400;
+  const h = Math.floor(rem / 3600);  rem %= 3600;
+  const m = Math.floor(rem / 60);    rem %= 60;
+  const parts = [];
+  if (d) parts.push(`${d}j`);
+  if (h) parts.push(`${h}h`);
+  if (m) parts.push(`${m}m`);
+  if (rem && !d) parts.push(`${rem}s`);
+  return parts.join(" ") || "0s";
+}
+
+async function checkAndCleanBan(store, id) {
+  try {
+    const data = await store.get(id);
+    const banned = data?.banned;
+    if (!banned || banned.status !== true) return null;
+    if (banned.expiresAt && Date.now() >= banned.expiresAt) {
+      await store.set(id, { banned: { status: false, reason: null, date: null, expiresAt: null } });
+      return null;
+    }
+    return banned;
+  } catch (_) {
+    return null;
+  }
+}
+
+function getTarget(event, args) {
+  const mentions = event.mentions || {};
+  const mentionIDs = Object.keys(mentions);
+
+  if (event.messageReply) {
+    const { ms, rest } = parseDuration(args);
+    return { uid: String(event.messageReply.senderID), ms, reason: rest.join(" ").trim() };
+  }
+  if (mentionIDs.length) {
+    let raw = args.join(" ");
+    for (const n of Object.values(mentions)) raw = raw.replace(n, "");
+    const tokens = raw.trim().split(/\s+/).filter(Boolean);
+    const { ms, rest } = parseDuration(tokens);
+    return { uid: String(mentionIDs[0]), ms, reason: rest.join(" ").trim() };
+  }
+  if (/^\d{5,}$/.test(args[0] || "")) {
+    const { ms, rest } = parseDuration(args.slice(1));
+    return { uid: args[0], ms, reason: rest.join(" ").trim() };
+  }
+  return null;
+}
+
+function getGroupTarget(event, args) {
+  if (/^\d{5,}$/.test(args[0] || "")) {
+    const { ms, rest } = parseDuration(args.slice(1));
+    return { tid: args[0], ms, reason: rest.join(" ").trim() };
+  }
+  if (event.isGroup !== false) {
+    const clean = ["this", "ici", "actuel"].includes((args[0] || "").toLowerCase()) ? args.slice(1) : args;
+    const { ms, rest } = parseDuration(clean);
+    return { tid: String(event.threadID), ms, reason: rest.join(" ").trim() };
+  }
+  return null;
+}
+
+async function nameOf(usersData, uid) {
+  try {
+    return (await usersData.getName(uid)) || uid;
+  } catch (_) {
+    return uid;
+  }
+}
+
+async function threadNameOf(threadsData, tid) {
+  try {
+    return (await threadsData.getName(tid)) || tid;
+  } catch (_) {
+    return tid;
+  }
+}
+
+module.exports = {
+  config: {
+    name: "blackliste",
+    aliases: ["prison", "scelle"],
+    version: "1.2.0",
+    author: "Camille Uchiha X CRIMSON 💙",
+    countDown: 3,
+    role: 2,
+    description: {
+      en: "Liste noire stylée Marin Kitagawa avec gestion des durées et des groupes !"
+    },
+    category: "owner",
+    guide: {
+      en:
+        "{pn} add @user [durée] [raison] : ghoster un utilisateur (ex: 30m, 2h, 7d)\n" +
+        "{pn} remove @user : lui redonner une chance\n" +
+        "{pn} list : voir les utilisateurs bannis\n" +
+        "{pn} group add [durée] [raison] : bannir ce groupe\n" +
+        "{pn} group remove : débannir ce groupe\n" +
+        "{pn} group list : voir les groupes bannis\n" +
+        "{pn} antispam on/off : gère l'anti-spam automatique"
+    }
+  },
+
+  onStart: async function ({ api, event, args, message, usersData, threadsData }) {
+    const sub = (args[0] || "").toLowerCase();
+    const rest = args.slice(1);
+
+    try {
+      /* ───── ANTI-SPAM ON / OFF ───── */
+      if (sub === "antispam") {
+        const choice = (args[1] || "").toLowerCase();
+        if (["on", "off"].includes(choice)) {
+          await threadsData.set(event.threadID, choice === "on", "data.antispamBL");
+          return message.reply(
+            naruto(
+              choice === "on" ? "MODE SÉCURITÉ ACTIVÉ" : "MODE CHILL ACTIVÉ",
+              choice === "on"
+                ? `Hii~ ! Les relous qui spamment vont dégager direct (${MAX_OFFENSES} avertissements = dehors) !`
+                : "Okii, j'ai coupé l'anti-spam dans ce groupe, profitez bien~ !"
+            )
+          );
+        }
+        const on = await antispamEnabled(threadsData, event.threadID);
+        return message.reply(
+          naruto(
+            "ANTI-SPAM",
+            `Statut : ${on ? "activé 💖" : "désactivé 💤"}\n` +
+              `Règle : ${SPAM_LIMIT} commandes en ${SPAM_WINDOW / 1000} s = 1 avertissement, ${MAX_OFFENSES} avertissements = viré.\n\n` +
+              "blackliste antispam on / off"
+          )
+        );
+      }
+
+      /* ───── GESTION DES GROUPES (THREADS) ───── */
+      if (["group", "groupe", "thread", "gc"].includes(sub)) {
+        const gSub = (rest[0] || "").toLowerCase();
+        const gRest = rest.slice(1);
+
+        if (["list", "liste", "bingo"].includes(gSub)) {
+          const all = await threadsData.getAll();
+          const banned = [];
+          for (const t of all) {
+            const b = await checkAndCleanBan(threadsData, t.threadID);
+            if (b) banned.push({ ...t, banned: b });
+          }
+          if (!banned.length) {
+            return message.reply(
+              naruto("GROUPES BANNIS", "Aucun groupe banni ! Tous les serveurs ont la bonne vibe~ ! ✨")
+            );
+          }
+          const shown = banned.slice(0, 20);
+          const lines = shown.map((t, i) => {
+            const left = t.banned.expiresAt ? formatDuration(t.banned.expiresAt - Date.now()) : "Permanent";
+            return (
+              `${i + 1}. ${t.threadName || t.threadID}\n` +
+              `   🆔 ${t.threadID}\n` +
+              `   ⏳ Reste : ${left}\n` +
+              `   💄 ${t.banned.reason || "Aucune raison"}`
+            );
+          });
+          const more = banned.length > shown.length ? `\n… et ${banned.length - shown.length} autre(s) groupe(s).` : "";
+          return message.reply(
+            naruto(`GROUPES BANNIS — ${banned.length}`, `${lines.join("\n\n")}${more}`)
+          );
+        }
+
+        const isGAdd = ["add", "ajouter", "ban", "bannir", "sceller"].includes(gSub);
+        const isGRemove = ["remove", "rm", "retirer", "unban", "kai"].includes(gSub);
+
+        if (!isGAdd && !isGRemove) {
+          return message.reply(
+            naruto(
+              "BLACKLISTE GROUPE",
+              "Commandes dispo pour les groupes :\n\n" +
+                "🚫 blackliste group add [durée] [raison]\n" +
+                "💖 blackliste group remove\n" +
+                "📓 blackliste group list\n\n" +
+                "Exemples de durée : 30s, 15m, 2h, 7d !"
+            )
+          );
+        }
+
+        const target = getGroupTarget(event, gRest);
+        if (!target) {
+          return message.reply(
+            naruto("QUEL GROUPE ?!", "Lance la commande dans un groupe ou précise son TID !")
+          );
+        }
+
+        const { tid } = target;
+        const gName = await threadNameOf(threadsData, tid);
+
+        if (isGAdd) {
+          const existing = await checkAndCleanBan(threadsData, tid);
+          if (existing) {
+            return message.reply(
+              naruto("DÉJÀ BANNI", `Le groupe « ${gName} » est déjà sur ma liste noire !`)
+            );
+          }
+
+          const reason = target.reason || "Vibe catastrophique dans ce groupe";
+          const expiresAt = target.ms ? Date.now() + target.ms : null;
+          const durationText = formatDuration(target.ms);
+
+          await threadsData.set(tid, {
+            banned: { status: true, reason, date: now(), expiresAt }
+          });
+
+          return message.reply(
+            naruto(
+              "GROUPE BANNI !",
+              `C'est mort, je réponds plus du tout dans ce groupe ! Ciao~ ! 💅\n\n` +
+                `🏠 Groupe : ${gName}\n` +
+                `🆔 TID : ${tid}\n` +
+                `⏳ Durée : ${durationText}\n` +
+                `💄 Raison : ${reason}`
+            )
+          );
+        }
+
+        const existing = await checkAndCleanBan(threadsData, tid);
+        if (!existing) {
+          return message.reply(
+            naruto("MÊME PAS BANNI", `Le groupe « ${gName} » n'est même pas dans mon carnet noir !`)
+          );
+        }
+
+        await threadsData.set(tid, {
+          banned: { status: false, reason: null, date: null, expiresAt: null }
+        });
+
+        return message.reply(
+          naruto(
+            "GROUPE PARDONNÉ !",
+            `Hii~ ! Le groupe « ${gName} » est débanni, je reviens discuter avec vous ! ✨`
+          )
+        );
+      }
+
+      /* ───── LISTE UTILISATEURS ───── */
+      if (["list", "liste", "bingo"].includes(sub)) {
+        const all = await usersData.getAll();
+        const banned = [];
+        for (const u of all) {
+          const b = await checkAndCleanBan(usersData, u.userID);
+          if (b) banned.push({ ...u, banned: b });
+        }
+        if (!banned.length) {
+          return message.reply(
+            naruto("CARNET NOIR", "Personne de banni ! Tout le monde est trop adorable ici, j'adore~ ! ✨")
+          );
+        }
+        const shown = banned.slice(0, 20);
+        const lines = shown.map((u, i) => {
+          const left = u.banned.expiresAt ? formatDuration(u.banned.expiresAt - Date.now()) : "Permanent";
+          return (
+            `${i + 1}. ${u.name || u.userID}\n` +
+            `   🆔 ${u.userID}\n` +
+            `   ⏳ Reste : ${left}\n` +
+            `   💄 ${u.banned.reason || "Aucune raison"}`
+          );
+        });
+        const more = banned.length > shown.length ? `\n… et ${banned.length - shown.length} autre(s) personne(s) ghostée(s).` : "";
+        return message.reply(
+          naruto(`CARNET NOIR — ${banned.length}`, `${lines.join("\n\n")}${more}`)
+        );
+      }
+
+      /* ───── AJOUT / RETRAIT UTILISATEUR ───── */
+      const isAdd = ["add", "ajouter", "ban", "bannir", "sceller"].includes(sub);
+      const isRemove = ["remove", "rm", "retirer", "unban", "kai"].includes(sub);
+
+      if (!isAdd && !isRemove) {
+        return message.reply(
+          naruto(
+            "GESTION BLACKLISTE",
+            "Euh attends, j'ai rien capté à ce que tu veux faire là ! 😅\n\n`" +
+              "🚫 blackliste add @user [durée] [raison]\n" +
+              "💖 blackliste remove @user\n" +
+              "📓 blackliste list\n" +
+              "🏠 blackliste group add/remove/list\n\n" +
+              "Durées possibles : 30s, 15m, 2h, 7d !"
+          )
+        );
+      }
+
+      const target = getTarget(event, rest);
+      if (!target) {
+        return message.reply(
+          naruto("C'EST QUI ?!", "Mentionne quelqu'un, réponds à son message ou donne son UID !")
+        );
+      }
+
+      const { uid } = target;
+      const targetName = await nameOf(usersData, uid);
+
+      if (isAdd) {
+        const cfg = (global.GoatBot && global.GoatBot.config) || {};
+        const protectedIDs = [...(cfg.adminBot || []), ...(cfg.devUsers || [])].map(String);
+        const botID = String(api.getCurrentUserID());
+
+        if (uid === botID) {
+          return message.reply(naruto("C'EST MORT !", "Mais ça va pas ?! Je vais quand même pas me bannir moi-même !"));
+        }
+        if (uid === String(event.senderID) || protectedIDs.includes(uid)) {
+          return message.reply(
+            naruto("IMPOSSIBLE !", `${targetName} est un(e) VIP intouchable : zéro chance !`)
+          );
+        }
+        if (await checkAndCleanBan(usersData, uid)) {
+          return message.reply(naruto("DÉJÀ GHOSTÉ(E)", `${targetName} est déjà sur ma liste noire !`));
+        }
+
+        const reason = target.reason || "Pas le vibe, tout simplement";
+        const expiresAt = target.ms ? Date.now() + target.ms : null;
+        const durationText = formatDuration(target.ms);
+
+        await usersData.set(uid, {
+          banned: { status: true, reason, date: now(), expiresAt }
+        });
+
+        return message.reply(
+          naruto(
+            "BANNI(E) & GHOSTÉ(E) !",
+            `Sérieux, ${targetName} a dépassé les bornes ! Ciao bye-bye~ ! 💅\n\n` +
+              `✨ Cible : ${targetName}\n` +
+              `🆔 UID : ${uid}\n` +
+              `⏳ Durée : ${durationText}\n` +
+              `💄 Raison : ${reason}`
+          )
+        );
+      }
+
+      if (!(await checkAndCleanBan(usersData, uid))) {
+        return message.reply(
+          naruto("MÊME PAS BANNI(E)", `${targetName} n'est même pas dans mon carnet noir, tranquille !`)
+        );
+      }
+      await usersData.set(uid, { banned: { status: false, reason: null, date: null, expiresAt: null } });
+
+      return message.reply(
+        naruto(
+          "PARDONNÉ(E) !",
+          `Hii~ ! ${targetName} est de retour dans mes bonnes grâces, on repart sur de bonnes bases ! ✨`
+        )
+      );
+    } catch (e) {
+      console.error("[blackliste]", e);
+      return message.reply(
+        naruto("OUPS, GROS BUG", `Aïe, un truc a planté là !\n${e?.message || "erreur inconnue"}`)
+      );
+    }
+  },
+
+  onChat: async function ({ api, event, message, usersData, threadsData }) {
+    try {
+      const { threadID, senderID, body } = event;
+      if (!body) return;
+
+      const botID = String(api.getCurrentUserID());
+      const uid = String(senderID);
+      if (uid === botID) return;
+
+      await checkAndCleanBan(usersData, uid);
+      if (event.isGroup !== false) {
+        await checkAndCleanBan(threadsData, threadID);
+      }
+
+      if (event.isGroup === false || getProtectedIDs().includes(uid)) return;
+
+      const prefix = getPrefix(threadID);
+      if (!prefix || !body.startsWith(prefix) || body.length === prefix.length) return;
+      if (!(await antispamEnabled(threadsData, threadID))) return;
+
+      const key = `${threadID}:${uid}`;
+      const t = Date.now();
+      const recent = (hits.get(key) || []).filter(x => t - x < SPAM_WINDOW);
+      recent.push(t);
+      hits.set(key, recent);
+      if (recent.length < SPAM_LIMIT) return;
+      hits.delete(key);
+
+      const threadInfo = await getThreadInfo(api, threadID);
+      const adminIDs = (threadInfo.adminIDs || []).map(a => String(a.id || a));
+      if (adminIDs.includes(uid)) return;
+      const botIsAdmin = adminIDs.includes(botID);
+
+      const prev = offenses.get(key);
+      const count = (prev && t - prev.last < OFFENSE_TTL ? prev.count : 0) + 1;
+      offenses.set(key, { count, last: t });
+      const name = await nameOf(usersData, uid);
+      const mention = [{ tag: name, id: uid }];
+
+      if (count < MAX_OFFENSES) {
+        const left = MAX_OFFENSES - count;
+        return message.reply({
+          body: naruto(
+            `AVERTISSEMENT ${count}/${MAX_OFFENSES}`,
+            `Eh oh ${name}, tu te calmes tout de suite ?! Tu me spammes trop là, c'est super relou ! 😤\n\n` +
+              `Encore ${left} fois et ${botIsAdmin ? "je te vire du groupe direct" : "je te ghoste à vie"} ! 💅`
+          ),
+          mentions: mention
+        });
+      }
+
+      offenses.delete(key);
+      let kicked = false;
+      if (botIsAdmin) {
+        try {
+          await removeUser(api, uid, threadID);
+          kicked = true;
+        } catch (e) {
+          console.error("[blackliste] expulsion impossible :", e?.message || e);
+        }
+      }
+
+      if (kicked) {
+        return message.reply(
+          naruto(
+            "VIRÉ(E) DU GROUPE !",
+            `${name} a trop forcé avec le spam malgré mes avertissements. Allez hop, dehors ! 💅✨`
+          )
+        );
+      }
+
+      await usersData.set(uid, {
+        banned: { status: true, reason: "Spam du bot (anti-spam automatique)", date: now(), expiresAt: null }
+      });
+      return message.reply({
+        body: naruto(
+          "GHOSTÉ(E) POUR SPAM !",
+          `${name} m'a spammée ${MAX_OFFENSES} fois, quel forceur ! Je ne lui réponds plus. 🙄`
+        ),
+        mentions: mention
+      });
+    } catch (e) {
+      console.error("[blackliste] anti-spam :", e?.message || e);
+    }
+  }
+};
