@@ -154,7 +154,7 @@ module.exports = {
     name: "blackliste",
     aliases: ["prison", "scelle"],
     version: "1.2.0",
-    author: "Camille Uchiha X CRIMSON 💙",
+    author: "Camille Uchiha X CRIMSON 💙🪽",
     countDown: 3,
     role: 2,
     description: {
