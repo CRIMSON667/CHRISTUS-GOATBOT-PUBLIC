@@ -15,7 +15,7 @@ module.exports = {
 
   onStart: async function ({ message }) {
     const text =
-      `${HEADER}✅ Voici le dépôt officiel :\n\n` +
+      `${HEADER}✅ Voici le dépôt officiel :🖕🏻🖕🏻\n\n` +
       `\n\n` +
       `Continue à nous soutenir ^_^`;
 
