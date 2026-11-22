@@ -1,6 +1,41 @@
+const FRAME = "🎀 𝑴𝑨𝑹𝑰𝑵 𝑲𝑰𝑻𝑨𝑮𝑨𝑾𝑨\n━━━━━━━━━━━━━━━━━━━━━━";
+
+function kitagawa(title, body) {
+	return `${FRAME}\n✨ ${title} ✨\n${body}`;
+}
+
 function sleep(time) {
 	return new Promise((resolve) => setTimeout(resolve, time));
 }
+
+const frenchLang = {
+	needAdmin: kitagawa(
+		"ADMIN REQUIS",
+		"Euh attends, mets-moi admin du groupe d'abord ! Sinon je peux virer personne, c'est mort ! 😤💅"
+	),
+	menu: kitagawa(
+		"MENU FILTERUSER",
+		"Tu veux faire le grand ménage dans le groupe ? Trop bien, voici comment faire~ ! ✨\n\n" +
+			"👻 filteruser <nombre> : vire tous ceux qui ont moins de X messages (ex: filteruser 5)\n" +
+			"💀 filteruser die : vire direct tous les comptes morts ou bloqués\n\n" +
+			"Pense bien à me laisser admin du groupe sinon je peux rien faire ! 💖"
+	),
+	confirm: kitagawa(
+		"CONFIRMATION DU TRI",
+		"Sérieux, tu veux vraiment que je vire tous ceux qui ont moins de %1 message(s) ?! 😱\n\n💖 Réagis à ce message avec n'importe quel emoji pour confirmer le grand ménage !"
+	),
+	kickByBlock: "💅 Ciao bye-bye~ ! J'ai viré %1 compte(s) mort(s) ou bloqué(s) du groupe ! ✨",
+	kickByMsg: "💅 Grand ménage terminé ! J'ai viré %1 fantôme(s) avec moins de %2 message(s) ! ✨",
+	kickError: "💥 Oups, impossible de virer %1 membre(s) :\n%2",
+	noBlock: kitagawa(
+		"GROUPE TOUT PROPRE",
+		"Hii~ ! Aucun compte mort ou bloqué ici, tout le monde est bien vivant ! ✨"
+	),
+	noMsg: kitagawa(
+		"PERSONNE À VIRER",
+		"Zéro fantôme avec moins de %1 message(s) ! Tout le monde participe trop bien, j'adore~ ! 💖"
+	)
+};
 
 module.exports = {
 	config: {
@@ -10,38 +45,25 @@ module.exports = {
 		countDown: 5,
 		role: 1,
 		description: {
-			vi: "lọc thành viên nhóm theo số tin nhắn hoặc bị khóa acc",
-			en: "filter group members by number of messages or locked account"
+			fr: "Trie les membres du groupe selon leur nombre de messages ou les comptes bloqués, style Marin Kitagawa !",
+			en: "Trie les membres du groupe selon leur nombre de messages ou les comptes bloqués, style Marin Kitagawa !"
 		},
 		category: "box chat",
 		guide: {
-			vi: "   {pn} [<số tin nhắn> | die]",
-			en: "   {pn} [<number of messages> | die]"
+			fr: "   {pn} [<nombre de messages> | die]",
+			en: "   {pn} [<nombre de messages> | die]"
 		}
 	},
 
 	langs: {
-		vi: {
-			needAdmin: "⚠️ | Vui lòng thêm bot làm quản trị viên của box để sử dụng lệnh này",
-			confirm: "⚠️ | Bạn có chắc chắn muốn xóa thành viên nhóm có số tin nhắn nhỏ hơn %1 không?\nThả cảm xúc bất kì vào tin nhắn này để xác nhận",
-			kickByBlock: "✅ | Đã xóa thành công %1 thành viên bị khóa acc",
-			kickByMsg: "✅ | Đã xóa thành công %1 thành viên có số tin nhắn nhỏ hơn %2",
-			kickError: "❌ | Đã xảy ra lỗi không thể kick %1 thành viên:\n%2",
-			noBlock: "✅ | Không có thành viên nào bị khóa acc",
-			noMsg: "✅ | Không có thành viên nào có số tin nhắn nhỏ hơn %1"
-		},
-		en: {
-			needAdmin: "⚠️ | Please add the bot as a group admin to use this command",
-			confirm: "⚠️ | Are you sure you want to delete group members with less than %1 messages?\nReact to this message to confirm",
-			kickByBlock: "✅ | Successfully removed %1 members unavailable account",
-			kickByMsg: "✅ | Successfully removed %1 members with less than %2 messages",
-			kickError: "❌ | An error occurred and could not kick %1 members:\n%2",
-			noBlock: "✅ | There are no members who are locked acc",
-			noMsg: "✅ | There are no members with less than %1 messages"
-		}
+		fr: frenchLang,
+		en: frenchLang
 	},
 
 	onStart: async function ({ api, args, threadsData, message, event, commandName, getLang }) {
+		if (!args[0])
+			return message.reply(getLang("menu"));
+
 		const threadData = await threadsData.get(event.threadID);
 		if (!threadData.adminIDs.includes(api.getCurrentUserID()))
 			return message.reply(getLang("needAdmin"));
@@ -56,7 +78,7 @@ module.exports = {
 				});
 			});
 		}
-		else if (args[0] == "die") {
+		else if (args[0].toLowerCase() == "die") {
 			const threadData = await api.getThreadInfo(event.threadID);
 			const membersBlocked = threadData.userInfo.filter(user => user.type !== "User");
 			const errors = [];
@@ -80,11 +102,11 @@ module.exports = {
 			if (errors.length > 0)
 				msg += `${getLang("kickError", errors.length, errors.join("\n"))}\n`;
 			if (msg == "")
-				msg += getLang("noBlock");
-			message.reply(msg);
+				return message.reply(getLang("noBlock"));
+			message.reply(kitagawa("RÉSULTAT DU TRI", msg.trim()));
 		}
 		else
-			message.SyntaxError();
+			return message.reply(getLang("menu"));
 	},
 
 	onReaction: async function ({ api, Reaction, event, threadsData, message, getLang }) {
@@ -96,7 +118,6 @@ module.exports = {
 		const membersCountLess = threadData.members.filter(member =>
 			member.count < minimum
 			&& member.inGroup == true
-			// ignore bot and admin box
 			&& member.userID != botID
 			&& !threadData.adminIDs.some(id => id == member.userID)
 		);
@@ -119,7 +140,7 @@ module.exports = {
 		if (errors.length > 0)
 			msg += `${getLang("kickError", errors.length, errors.join("\n"))}\n`;
 		if (msg == "")
-			msg += getLang("noMsg", minimum);
-		message.reply(msg);
+			return message.reply(getLang("noMsg", minimum));
+		message.reply(kitagawa("RÉSULTAT DU TRI", msg.trim()));
 	}
 };
